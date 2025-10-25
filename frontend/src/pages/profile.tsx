@@ -46,7 +46,7 @@ export default function ProfilePage() {
     return <div className="text-center mt-10 text-red-500">{error}</div>;
   if (!user) return <div className="text-center mt-10">No profile data.</div>;
 
-  const avatar = user.images?.[0]?.url || "/vite.svg";
+  const avatar = user.images?.[0]?.url || "/placeholder_avatar.png";
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10">
