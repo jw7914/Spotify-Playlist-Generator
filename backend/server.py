@@ -34,7 +34,7 @@ def login():
     auth_url = f"https://accounts.spotify.com/authorize?{urllib.parse.urlencode(params)}"
     return RedirectResponse(url=auth_url)
 
-@api_router.get("/auth/callback")
+@api_router.get("/callback")
 def callback(code: str | None = None, error: str | None = None):
     if error:
         raise HTTPException(status_code=400, detail={"error": error})
