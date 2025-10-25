@@ -1,5 +1,5 @@
 from pathlib import Path
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse, FileResponse
 import urllib.parse
 import urllib.request
@@ -16,30 +16,48 @@ API_BASE_URL = "https://api.spotify.com/v1"
 FRONTEND_DIST = (Path(__file__).parent.parent / "frontend" / "dist").resolve()
 load_dotenv()
 
+import secrets
+
 app = FastAPI(title="Spotify Playlist Generator")
 api_router = APIRouter(prefix="/api")
+# lifetime of a state in seconds (used for cookie max_age)
+STATE_TTL = 300
 
 
 # --- API Routes ---
 @api_router.get("/auth/login")
 def login():
     scope = "user-read-private user-read-email user-top-read"
+    # generate a cryptographically secure state and set it in a short-lived cookie
+    state = secrets.token_urlsafe(16)
     params = {
         "client_id": os.getenv("SPOTIFY_CLIENT_ID"),
         "response_type": "code",
         "scope": scope,
         "redirect_uri": os.getenv("REDIRECT_URI") or "http://127.0.0.1:8000/api/auth/callback",
-        "show_dialog": True
+        "show_dialog": True,
+        "state": state,
     }
     auth_url = f"https://accounts.spotify.com/authorize?{urllib.parse.urlencode(params)}"
-    return RedirectResponse(url=auth_url)
+    # set a short-lived, httpOnly cookie to help bind the browser session
+    resp = RedirectResponse(url=auth_url)
+    # Set short-lived, httpOnly cookie containing the state. We will verify it in the callback.
+    resp.set_cookie("spotify_oauth_state", state, max_age=STATE_TTL, httponly=True, samesite="lax")
+    return resp
 
 @api_router.get("/auth/callback")
-def callback(code: str | None = None, error: str | None = None):
+def callback(request: Request, code: str | None = None, state: str | None = None, error: str | None = None):
     if error:
         raise HTTPException(status_code=400, detail={"error": error})
     if not code:
         raise HTTPException(status_code=400, detail="Missing 'code' in callback query")
+
+    # Verify state parameter using the cookie set at /auth/login to mitigate CSRF
+    cookie_state = request.cookies.get("spotify_oauth_state")
+    if not state:
+        raise HTTPException(status_code=400, detail="Missing 'state' in callback query")
+    if not cookie_state or cookie_state != state:
+        raise HTTPException(status_code=400, detail="Invalid or mismatched OAuth state")
 
     client_id = os.getenv("SPOTIFY_CLIENT_ID")
     client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
@@ -78,23 +96,92 @@ def callback(code: str | None = None, error: str | None = None):
         token_data = json.loads(body_text)
     except Exception:
         raise HTTPException(status_code=502, detail="Failed to parse token response")
+    access_token = token_data.get("access_token")
+    refresh_token = token_data.get("refresh_token")
+    expires_in = token_data.get("expires_in")
+    expires_at = datetime.now().timestamp() + (expires_in or 0)
 
-    app.state.access_token = token_data["access_token"]
-    app.state.refresh_token = token_data["refresh_token"]
-    app.state.expires_at= datetime.now().timestamp() + token_data["expires_in"]
-    return RedirectResponse(url="/playlists")
+    # Set tokens in HttpOnly cookies so multiple browser users can authenticate independently.
+    resp = RedirectResponse(url="/playlists")
+    resp.set_cookie("access_token", access_token or "", httponly=True, samesite="lax")
+    if refresh_token:
+        resp.set_cookie("refresh_token", refresh_token, httponly=True, samesite="lax")
+    resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+    # consume the oauth state cookie
+    resp.set_cookie("spotify_oauth_state", "", max_age=0)
+    return resp
 
 @api_router.get("/playlists")
-def get_playlists():
-    if not getattr(app.state, "access_token", None):
+def get_playlists(request: Request):
+    # Read tokens from cookies (per-browser/session)
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token:
         return RedirectResponse(url="/api/auth/login")
-    
-    print(datetime.now().timestamp())
-    if datetime.now().timestamp() > app.state.expires_at:
-        return RedirectResponse("/api/auth/login") #change to refresh token later
-    
+
+    try:
+        expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except Exception:
+        expires_at = 0
+
+    # If expired, try to refresh using refresh_token cookie
+    if datetime.now().timestamp() > expires_at:
+        if not refresh_token:
+            return RedirectResponse(url="/api/auth/login")
+
+        # Attempt token refresh
+        token_url = "https://accounts.spotify.com/api/token"
+        client_id = os.getenv("SPOTIFY_CLIENT_ID")
+        client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+        if not client_id or not client_secret:
+            raise HTTPException(status_code=500, detail="Missing Spotify client credentials on server")
+
+        data = {
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+        }
+        auth_value = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+        headers = {
+            "Authorization": f"Basic {auth_value}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+
+        encoded = urllib.parse.urlencode(data).encode()
+        req = urllib.request.Request(token_url, data=encoded, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                status = resp.getcode()
+                body_text = resp.read().decode("utf-8")
+        except urllib.error.HTTPError as he:
+            body = he.read().decode("utf-8") if hasattr(he, "read") else ""
+            return RedirectResponse(url="/api/auth/login")
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Token refresh failed: {e}")
+
+        if status < 200 or status >= 300:
+            return RedirectResponse(url="/api/auth/login")
+
+        try:
+            token_data = json.loads(body_text)
+        except Exception:
+            raise HTTPException(status_code=502, detail="Failed to parse token refresh response")
+
+        access_token = token_data.get("access_token")
+        expires_in = token_data.get("expires_in")
+        expires_at = datetime.now().timestamp() + (expires_in or 0)
+
+        # Build a response that redirects to the same endpoint to continue flow with new cookie
+        resp = RedirectResponse(url="/api/playlists")
+        resp.set_cookie("access_token", access_token or "", httponly=True, samesite="lax")
+        # spotify may not return a refresh_token on refresh; preserve existing one
+        resp.set_cookie("refresh_token", refresh_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+
     headers = {
-        "Authorization": f"Bearer {app.state.access_token}"
+        "Authorization": f"Bearer {access_token}"
     }
     items = []
     url = f"{API_BASE_URL}/me/playlists"
