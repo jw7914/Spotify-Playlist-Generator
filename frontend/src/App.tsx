@@ -19,7 +19,7 @@ function App() {
       <Route element={<BlogPage />} path="/blog" />
       <Route element={<PlaylistsPage />} path="/playlists" />
       <Route element={<TopArtistsPage />} path="/top-artists" />
-  <Route element={<ProfilePage />} path="/profile" />
+      <Route element={<ProfilePage />} path="/profile" />
       <Route element={<LoginPage />} path="/login" />
       <Route element={<NotFoundPage />} path="*" />
     </Routes>

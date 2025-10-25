@@ -40,8 +40,10 @@ export default function ProfilePage() {
       .finally(() => setLoading(false));
   }, [navigate]);
 
-  if (loading) return <div className="text-center mt-10">Loading profile...</div>;
-  if (error) return <div className="text-center mt-10 text-red-500">{error}</div>;
+  if (loading)
+    return <div className="text-center mt-10">Loading profile...</div>;
+  if (error)
+    return <div className="text-center mt-10 text-red-500">{error}</div>;
   if (!user) return <div className="text-center mt-10">No profile data.</div>;
 
   const avatar = user.images?.[0]?.url || "/vite.svg";
@@ -55,11 +57,11 @@ export default function ProfilePage() {
           className="w-28 h-28 rounded-full object-cover shadow-sm"
         />
         <div>
-          <h1 className="text-2xl font-bold">
-            {user.display_name || user.id}
-          </h1>
+          <h1 className="text-2xl font-bold">{user.display_name || user.id}</h1>
           {user.email && (
-            <div className="text-sm text-muted-foreground mt-1">{user.email}</div>
+            <div className="text-sm text-muted-foreground mt-1">
+              {user.email}
+            </div>
           )}
           <div className="mt-3 flex gap-3">
             {user.external_url && (
