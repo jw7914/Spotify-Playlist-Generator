@@ -17,20 +17,11 @@
       "dest": "backend/server.py"
     },
     {
-      "src": "/assets/(.*)",
-      "dest": "frontend/dist/assets/$1"
-    },
-    {
-      "src": "/favicon.ico",
-      "dest": "frontend/dist/favicon.ico"
-    },
-    {
-      "src": "/manifest.json",
-      "dest": "frontend/dist/manifest.json"
+      "handle": "filesystem"
     },
     {
       "src": "/(.*)",
-      "dest": "frontend/dist/index.html"
+      "dest": "/index.html"
     }
   ]
 }
