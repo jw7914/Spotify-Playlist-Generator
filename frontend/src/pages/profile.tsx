@@ -93,7 +93,7 @@ export default function ProfilePage() {
       );
     }
 
-    const avatar = user.images?.[0]?.url || "/vite.svg";
+    const avatar = user.images?.[0]?.url || "/placeholder_avatar.svg";
 
     return (
       <>
@@ -126,6 +126,12 @@ export default function ProfilePage() {
                 className="inline-flex items-center px-4 py-2 rounded-full bg-white/20 text-white text-sm font-medium hover:bg-white/30 transition"
               >
                 Your Playlists
+              </button>
+              <button
+                onClick={() => navigate("/top-artists")}
+                className="inline-flex items-center px-4 py-2 rounded-full bg-white/20 text-white text-sm font-medium hover:bg-white/30 transition"
+              >
+                Your Top Artists
               </button>
             </div>
           </div>

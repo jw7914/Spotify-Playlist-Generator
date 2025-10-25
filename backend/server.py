@@ -1,6 +1,7 @@
 from pathlib import Path
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 import urllib.parse
 import urllib.request
 import urllib.error
@@ -20,7 +21,6 @@ load_dotenv()
 
 app = FastAPI(title="Spotify Playlist Generator")
 api_router = APIRouter(prefix="/api")
-# lifetime of a state in seconds (used for cookie max_age)
 STATE_TTL = 300
 
 
@@ -28,7 +28,6 @@ STATE_TTL = 300
 @api_router.get("/auth/login")
 def login():
     scope = "user-read-private user-read-email user-top-read"
-    # generate a cryptographically secure state and set it in a short-lived cookie
     state = secrets.token_urlsafe(16)
     params = {
         "client_id": os.getenv("SPOTIFY_CLIENT_ID"),
@@ -39,9 +38,7 @@ def login():
         "state": state,
     }
     auth_url = f"https://accounts.spotify.com/authorize?{urllib.parse.urlencode(params)}"
-    # set a short-lived, httpOnly cookie to help bind the browser session
     resp = RedirectResponse(url=auth_url)
-    # Set short-lived, httpOnly cookie containing the state. We will verify it in the callback.
     resp.set_cookie("spotify_oauth_state", state, max_age=STATE_TTL, httponly=True, samesite="lax")
     return resp
 
@@ -52,7 +49,6 @@ def callback(request: Request, code: str | None = None, state: str | None = None
     if not code:
         raise HTTPException(status_code=400, detail="Missing 'code' in callback query")
 
-    # Verify state parameter using the cookie set at /auth/login to mitigate CSRF
     cookie_state = request.cookies.get("spotify_oauth_state")
     if not state:
         raise HTTPException(status_code=400, detail="Missing 'state' in callback query")
@@ -101,13 +97,11 @@ def callback(request: Request, code: str | None = None, state: str | None = None
     expires_in = token_data.get("expires_in")
     expires_at = datetime.now().timestamp() + (expires_in or 0)
 
-    # Set tokens in HttpOnly cookies so multiple browser users can authenticate independently.
     resp = RedirectResponse(url="/profile")
     resp.set_cookie("access_token", access_token or "", httponly=True, samesite="lax")
     if refresh_token:
         resp.set_cookie("refresh_token", refresh_token, httponly=True, samesite="lax")
     resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
-    # consume the oauth state cookie
     resp.set_cookie("spotify_oauth_state", "", max_age=0)
     return resp
 
@@ -128,14 +122,13 @@ def auth_status(request: Request):
     is_expired = datetime.now().timestamp() > expires_at
 
     if is_expired and not refresh_token:
-        # Token is expired and we have no way to refresh it
         return {"authenticated": False}
     
     return {"authenticated": True}
 
+
 @api_router.get("/playlists")
 def get_playlists(request: Request):
-    # Read tokens from cookies (per-browser/session)
     access_token = request.cookies.get("access_token")
     refresh_token = request.cookies.get("refresh_token")
     expires_at_raw = request.cookies.get("expires_at")
@@ -148,12 +141,10 @@ def get_playlists(request: Request):
     except Exception:
         expires_at = 0
 
-    # If expired, try to refresh using refresh_token cookie
     if datetime.now().timestamp() > expires_at:
         if not refresh_token:
             return RedirectResponse(url="/api/auth/login")
 
-        # Attempt token refresh
         token_url = "https://accounts.spotify.com/api/token"
         client_id = os.getenv("SPOTIFY_CLIENT_ID")
         client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
@@ -194,10 +185,8 @@ def get_playlists(request: Request):
         expires_in = token_data.get("expires_in")
         expires_at = datetime.now().timestamp() + (expires_in or 0)
 
-        # Build a response that redirects to the same endpoint to continue flow with new cookie
         resp = RedirectResponse(url="/api/playlists")
         resp.set_cookie("access_token", access_token or "", httponly=True, samesite="lax")
-        # spotify may not return a refresh_token on refresh; preserve existing one
         resp.set_cookie("refresh_token", refresh_token, httponly=True, samesite="lax")
         resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
         return resp
@@ -248,13 +237,6 @@ def get_playlists(request: Request):
 
 @api_router.get("/top-artists")
 def get_top_artists(request: Request, time_range: str = "medium_term", limit: int = 20):
-    """Return the current user's top artists.
-
-    Query params:
-    - time_range: short_term | medium_term | long_term
-    - limit: number of artists to return (max 50)
-    """
-    # Read tokens from cookies (per-browser/session)
     access_token = request.cookies.get("access_token")
     refresh_token = request.cookies.get("refresh_token")
     expires_at_raw = request.cookies.get("expires_at")
@@ -267,12 +249,10 @@ def get_top_artists(request: Request, time_range: str = "medium_term", limit: in
     except Exception:
         expires_at = 0
 
-    # If expired, try to refresh using refresh_token cookie
     if datetime.now().timestamp() > expires_at:
         if not refresh_token:
             return RedirectResponse(url="/api/auth/login")
 
-        # Attempt token refresh
         token_url = "https://accounts.spotify.com/api/token"
         client_id = os.getenv("SPOTIFY_CLIENT_ID")
         client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
@@ -286,7 +266,7 @@ def get_top_artists(request: Request, time_range: str = "medium_term", limit: in
         auth_value = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
         headers = {
             "Authorization": f"Basic {auth_value}",
-            "Content-Type": "application/x-www-form-urlencoded",
+            "Content-Type": "application/x-www-form-.urlencoded",
         }
 
         encoded = urllib.parse.urlencode(data).encode()
@@ -313,10 +293,8 @@ def get_top_artists(request: Request, time_range: str = "medium_term", limit: in
         expires_in = token_data.get("expires_in")
         expires_at = datetime.now().timestamp() + (expires_in or 0)
 
-        # Build a response that redirects to the same endpoint to continue flow with new cookie
         resp = RedirectResponse(url=f"/api/top-artists?time_range={urllib.parse.quote(time_range)}&limit={int(limit)}")
         resp.set_cookie("access_token", access_token or "", httponly=True, samesite="lax")
-        # spotify may not return a refresh_token on refresh; preserve existing one
         resp.set_cookie("refresh_token", refresh_token, httponly=True, samesite="lax")
         resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
         return resp
@@ -368,10 +346,6 @@ def get_top_artists(request: Request, time_range: str = "medium_term", limit: in
 
 @api_router.get("/me")
 def get_me(request: Request):
-    """Return the current user's Spotify profile.
-
-    Uses the same cookie-based access/refresh token handling as other endpoints.
-    """
     access_token = request.cookies.get("access_token")
     refresh_token = request.cookies.get("refresh_token")
     expires_at_raw = request.cookies.get("expires_at")
@@ -384,12 +358,10 @@ def get_me(request: Request):
     except Exception:
         expires_at = 0
 
-    # If expired, try to refresh using refresh_token cookie
     if datetime.now().timestamp() > expires_at:
         if not refresh_token:
             return RedirectResponse(url="/api/auth/login")
 
-        # Attempt token refresh
         token_url = "https://accounts.spotify.com/api/token"
         client_id = os.getenv("SPOTIFY_CLIENT_ID")
         client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
@@ -430,10 +402,8 @@ def get_me(request: Request):
         expires_in = token_data.get("expires_in")
         expires_at = datetime.now().timestamp() + (expires_in or 0)
 
-        # Build a response that redirects to the same endpoint to continue flow with new cookie
         resp = RedirectResponse(url="/api/me")
         resp.set_cookie("access_token", access_token or "", httponly=True, samesite="lax")
-        # spotify may not return a refresh_token on refresh; preserve existing one
         resp.set_cookie("refresh_token", refresh_token, httponly=True, samesite="lax")
         resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
         return resp
@@ -481,21 +451,24 @@ def list_routes():
 
 app.include_router(api_router)
 
-# Catch all for serving React Frontend
+app.mount(
+    "/assets",
+    StaticFiles(directory=FRONTEND_DIST / "assets"),
+    name="assets"
+)
+
 @app.get("/{full_path:path}")
 async def serve_react_app(full_path: str):
     """
-    Serves the index.html file for all non-API, non-static routes.
+    Serves static files from the root (like favicon.ico)
+    and serves index.html for all other non-API, non-asset routes.
     """
     index_path = FRONTEND_DIST / "index.html"
     file_path = FRONTEND_DIST / full_path
 
-    # Serve 'index.html' for deep links (e.g., /playlists)
-    # or if the path is a directory
-    if not file_path.exists() or file_path.is_dir():
-        if not index_path.exists():
-            raise HTTPException(status_code=404, detail="React app index.html not found")
-        return FileResponse(index_path)
+    if file_path.exists() and not file_path.is_dir():
+        return FileResponse(file_path)
 
-    # Serve static files from the root (like favicon.ico, manifest.json)
-    return FileResponse(file_path)
+    if not index_path.exists():
+        raise HTTPException(status_code=404, detail="React app index.html not found")
+    return FileResponse(index_path)

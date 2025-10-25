@@ -3,6 +3,10 @@ import {
   NavbarBrand,
   NavbarContent,
   NavbarItem,
+  // --- Add new imports for the mobile menu ---
+  NavbarMenuToggle,
+  NavbarMenu,
+  NavbarMenuItem,
 } from "@heroui/react";
 import { Tabs, Tab } from "@heroui/react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -14,6 +18,8 @@ export const Navbar = () => {
   const pathname = location.pathname || "/";
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  // --- Add state for the mobile menu ---
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     const checkAuthStatus = async () => {
@@ -23,7 +29,6 @@ export const Navbar = () => {
           const data = await response.json();
           setIsAuthenticated(data.authenticated);
         } else {
-          // If the API call fails, assume not authenticated
           setIsAuthenticated(false);
         }
       } catch (error) {
@@ -49,19 +54,33 @@ export const Navbar = () => {
 
     return baseItems;
   }, [isAuthenticated]);
+
   const selectedKey =
     tabItems
       .slice()
       .sort((a, b) => b.href.length - a.href.length)
       .find((t) => pathname.startsWith(t.href))?.key ?? tabItems[0].key;
 
+  const handleMenuNavigate = (href: string) => {
+    navigate(href);
+    setIsMenuOpen(false); // Close menu after navigation
+  };
+
   return (
-    <HeroUINavbar shouldHideOnScroll className="bg-black">
+    <HeroUINavbar
+      shouldHideOnScroll
+      className="bg-black"
+      // --- Control the mobile menu state ---
+      isMenuOpen={isMenuOpen}
+      onMenuOpenChange={setIsMenuOpen}
+    >
       <NavbarBrand>
         <p className="font-bold text-white">Spotify Playlist Generator</p>
-        <img></img>
+        <img />
       </NavbarBrand>
-      <NavbarContent justify="end">
+
+      {/* --- Desktop Tabs (hidden on small screens) --- */}
+      <NavbarContent justify="end" className="hidden sm:flex">
         <NavbarItem>
           <div className="dark">
             <Tabs
@@ -90,10 +109,52 @@ export const Navbar = () => {
                   `}
                 />
               ))}
+              {isAuthenticated === null && (
+                <Tab
+                  key="loading-placeholder"
+                  title="\u00A0"
+                  isDisabled
+                  className="mx-2 px-3"
+                />
+              )}
             </Tabs>
           </div>
         </NavbarItem>
       </NavbarContent>
+
+      {/* --- Mobile Menu Toggle (visible only on small screens) --- */}
+      <NavbarContent justify="end" className="text-white sm:hidden">
+        <NavbarMenuToggle
+          aria-label={isMenuOpen ? "Close menu" : "Open menu"}
+        />
+      </NavbarContent>
+
+      {/* --- Mobile Menu --- */}
+      <NavbarMenu className="bg-black/80 pt-4 backdrop-blur-md">
+        {tabItems.map((item) => (
+          <NavbarMenuItem key={item.key}>
+            <button
+              className={`w-full py-2 text-2xl ${
+                item.key === selectedKey
+                  ? "font-bold text-[#6A6BB5]" // Active link style
+                  : "text-white"
+              }`}
+              onClick={() => handleMenuNavigate(item.href)}
+            >
+              {item.title}
+            </button>
+          </NavbarMenuItem>
+        ))}
+
+        {/* Mobile loading state */}
+        {isAuthenticated === null && (
+          <NavbarMenuItem>
+            <div className="w-full py-2 text-center text-2xl text-zinc-500">
+              Loading...
+            </div>
+          </NavbarMenuItem>
+        )}
+      </NavbarMenu>
     </HeroUINavbar>
   );
 };
