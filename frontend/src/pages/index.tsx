@@ -1,60 +1,38 @@
 import { Link } from "@heroui/link";
-import { Snippet } from "@heroui/snippet";
-import { Code } from "@heroui/code";
-import { button as buttonStyles } from "@heroui/theme";
-
-import { siteConfig } from "@/config/site";
-import { title, subtitle } from "@/components/primitives";
-import { GithubIcon } from "@/components/icons";
-import DefaultLayout from "@/layouts/default";
+import { Navbar } from "@/components/navbar";
 
 export default function IndexPage() {
   return (
-    <DefaultLayout>
-      <section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10">
-        <div className="inline-block max-w-lg text-center justify-center">
-          <span className={title()}>Make&nbsp;</span>
-          <span className={title({ color: "violet" })}>beautiful&nbsp;</span>
-          <br />
-          <span className={title()}>
-            websites regardless of your design experience.
-          </span>
-          <div className={subtitle({ class: "mt-4" })}>
-            Beautiful, fast and modern React UI library.
+    <>
+      <Navbar></Navbar>
+      <main className="flex flex-col items-center w-full px-6">
+        <section className="w-full max-w-6xl mt-12">
+          <div className="relative overflow-hidden rounded-[48px] bg-gradient-to-r from-green-400 via-teal-400 to-indigo-500 p-16 md:p-28 shadow-2xl">
+            {/* subtle dark overlay to match the design */}
+            <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px] rounded-[48px] pointer-events-none" />
+
+            <div className="relative z-10 flex flex-col items-center justify-center text-center text-white">
+              <h1 className="max-w-3xl text-4xl md:text-6xl font-extrabold leading-tight">
+                Your music. Your mood. Your content.
+              </h1>
+
+              <p className="mt-6 max-w-2xl text-base md:text-lg text-white/90">
+                Connect your account to generate personalized AI content
+                inspired by your music!
+              </p>
+
+              <div className="mt-10">
+                <Link
+                  href="/login"
+                  className="inline-flex items-center gap-3 bg-white/10 hover:bg-white/20 border border-white/10 text-white px-6 py-3 rounded-full shadow-lg transition"
+                >
+                  <span className="font-medium">Login to Spotify</span>
+                </Link>
+              </div>
+            </div>
           </div>
-        </div>
-
-        <div className="flex gap-3">
-          <Link
-            isExternal
-            className={buttonStyles({
-              color: "primary",
-              radius: "full",
-              variant: "shadow",
-            })}
-            href={siteConfig.links.docs}
-          >
-            Documentation
-          </Link>
-          <Link
-            isExternal
-            className={buttonStyles({ variant: "bordered", radius: "full" })}
-            href={siteConfig.links.github}
-          >
-            <GithubIcon size={20} />
-            GitHub
-          </Link>
-        </div>
-
-        <div className="mt-8">
-          <Snippet hideCopyButton hideSymbol variant="bordered">
-            <span>
-              Get started by editing{" "}
-              <Code color="primary">pages/index.tsx</Code>
-            </span>
-          </Snippet>
-        </div>
-      </section>
-    </DefaultLayout>
+        </section>
+      </main>
+    </>
   );
 }

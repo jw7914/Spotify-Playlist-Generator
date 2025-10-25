@@ -1,4 +1,4 @@
-import { Button } from "@heroui/button";
+// Button removed — not used after navbar tweaks
 import { Kbd } from "@heroui/kbd";
 import { Link } from "@heroui/link";
 import { Input } from "@heroui/input";
@@ -20,7 +20,6 @@ import {
   TwitterIcon,
   GithubIcon,
   DiscordIcon,
-  HeartFilledIcon,
   SearchIcon,
 } from "@/components/icons";
 import { Logo } from "@/components/icons";
@@ -66,7 +65,7 @@ export const Navbar = () => {
               <Link
                 className={clsx(
                   linkStyles({ color: "foreground" }),
-                  "data-[active=true]:text-primary data-[active=true]:font-medium",
+                  "data-[active=true]:text-primary data-[active=true]:font-medium"
                 )}
                 color="foreground"
                 href={item.href}
@@ -75,6 +74,18 @@ export const Navbar = () => {
               </Link>
             </NavbarItem>
           ))}
+          {/* Add Discover with AI quick link to match design */}
+          <NavbarItem>
+            <Link
+              href="/playlists"
+              className={clsx(
+                linkStyles({ color: "foreground" }),
+                "rounded-full px-3 py-1 bg-white/5 hover:bg-white/10 text-sm"
+              )}
+            >
+              Discover with AI
+            </Link>
+          </NavbarItem>
         </div>
       </NavbarContent>
 
@@ -96,16 +107,12 @@ export const Navbar = () => {
         </NavbarItem>
         <NavbarItem className="hidden lg:flex">{searchInput}</NavbarItem>
         <NavbarItem className="hidden md:flex">
-          <Button
-            isExternal
-            as={Link}
-            className="text-sm font-normal text-default-600 bg-default-100"
-            href={siteConfig.links.sponsor}
-            startContent={<HeartFilledIcon className="text-danger" />}
-            variant="flat"
+          <Link
+            href="/login"
+            className="inline-flex items-center px-4 py-2 rounded-full bg-violet-600 text-white text-sm font-medium shadow-sm hover:bg-violet-700 transition"
           >
-            Sponsor
-          </Button>
+            Login
+          </Link>
         </NavbarItem>
       </NavbarContent>
 
@@ -137,6 +144,11 @@ export const Navbar = () => {
               </Link>
             </NavbarMenuItem>
           ))}
+          <NavbarMenuItem>
+            <Link color="primary" href="/login" size="lg">
+              Login
+            </Link>
+          </NavbarMenuItem>
         </div>
       </NavbarMenu>
     </HeroUINavbar>
