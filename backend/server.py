@@ -111,6 +111,28 @@ def callback(request: Request, code: str | None = None, state: str | None = None
     resp.set_cookie("spotify_oauth_state", "", max_age=0)
     return resp
 
+@api_router.get("/auth/status")
+def auth_status(request: Request):
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token:
+        return {"authenticated": False}
+
+    try:
+        expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except Exception:
+        expires_at = 0
+
+    is_expired = datetime.now().timestamp() > expires_at
+
+    if is_expired and not refresh_token:
+        # Token is expired and we have no way to refresh it
+        return {"authenticated": False}
+    
+    return {"authenticated": True}
+
 @api_router.get("/playlists")
 def get_playlists(request: Request):
     # Read tokens from cookies (per-browser/session)

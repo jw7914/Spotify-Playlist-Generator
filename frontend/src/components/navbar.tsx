@@ -6,19 +6,49 @@ import {
 } from "@heroui/react";
 import { Tabs, Tab } from "@heroui/react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
 
 export const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const pathname = location.pathname || "/";
 
-  const tabItems = [
-    { key: "/", href: "/", title: "Home" },
-    { key: "/create", href: "/create", title: "Create With AI" },
-    { key: "/login", href: "/login", title: "Login" },
-  ];
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
-  // Your selectedKey logic
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      try {
+        const response = await fetch("/api/auth/status");
+        if (response.ok) {
+          const data = await response.json();
+          setIsAuthenticated(data.authenticated);
+        } else {
+          // If the API call fails, assume not authenticated
+          setIsAuthenticated(false);
+        }
+      } catch (error) {
+        console.error("Failed to fetch auth status:", error);
+        setIsAuthenticated(false);
+      }
+    };
+
+    checkAuthStatus();
+  }, []);
+
+  const tabItems = useMemo(() => {
+    const baseItems = [
+      { key: "/", href: "/", title: "Home" },
+      { key: "/create", href: "/create", title: "Create With AI" },
+    ];
+
+    if (isAuthenticated === true) {
+      baseItems.push({ key: "/profile", href: "/profile", title: "Profile" });
+    } else if (isAuthenticated === false) {
+      baseItems.push({ key: "/login", href: "/login", title: "Login" });
+    }
+
+    return baseItems;
+  }, [isAuthenticated]);
   const selectedKey =
     tabItems
       .slice()
@@ -53,7 +83,7 @@ export const Navbar = () => {
                   className={`mx-2 px-3
                     data-[selected=true]:text-white
                     ${
-                      item.key === "/login"
+                      item.key === "/login" || item.key === "/profile"
                         ? "data-[selected=true]:bg-[#6A6BB5]"
                         : "data-[selected=true]:bg-zinc-700"
                     }
