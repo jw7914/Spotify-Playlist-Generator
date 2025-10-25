@@ -223,6 +223,126 @@ def get_playlists(request: Request):
 
     return {"playlists": playlists}
 
+
+@api_router.get("/top-artists")
+def get_top_artists(request: Request, time_range: str = "medium_term", limit: int = 20):
+    """Return the current user's top artists.
+
+    Query params:
+    - time_range: short_term | medium_term | long_term
+    - limit: number of artists to return (max 50)
+    """
+    # Read tokens from cookies (per-browser/session)
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token:
+        return RedirectResponse(url="/api/auth/login")
+
+    try:
+        expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except Exception:
+        expires_at = 0
+
+    # If expired, try to refresh using refresh_token cookie
+    if datetime.now().timestamp() > expires_at:
+        if not refresh_token:
+            return RedirectResponse(url="/api/auth/login")
+
+        # Attempt token refresh
+        token_url = "https://accounts.spotify.com/api/token"
+        client_id = os.getenv("SPOTIFY_CLIENT_ID")
+        client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+        if not client_id or not client_secret:
+            raise HTTPException(status_code=500, detail="Missing Spotify client credentials on server")
+
+        data = {
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+        }
+        auth_value = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+        headers = {
+            "Authorization": f"Basic {auth_value}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+
+        encoded = urllib.parse.urlencode(data).encode()
+        req = urllib.request.Request(token_url, data=encoded, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                status = resp.getcode()
+                body_text = resp.read().decode("utf-8")
+        except urllib.error.HTTPError as he:
+            body = he.read().decode("utf-8") if hasattr(he, "read") else ""
+            return RedirectResponse(url="/api/auth/login")
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Token refresh failed: {e}")
+
+        if status < 200 or status >= 300:
+            return RedirectResponse(url="/api/auth/login")
+
+        try:
+            token_data = json.loads(body_text)
+        except Exception:
+            raise HTTPException(status_code=502, detail="Failed to parse token refresh response")
+
+        access_token = token_data.get("access_token")
+        expires_in = token_data.get("expires_in")
+        expires_at = datetime.now().timestamp() + (expires_in or 0)
+
+        # Build a response that redirects to the same endpoint to continue flow with new cookie
+        resp = RedirectResponse(url=f"/api/top-artists?time_range={urllib.parse.quote(time_range)}&limit={int(limit)}")
+        resp.set_cookie("access_token", access_token or "", httponly=True, samesite="lax")
+        # spotify may not return a refresh_token on refresh; preserve existing one
+        resp.set_cookie("refresh_token", refresh_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+
+    headers = {
+        "Authorization": f"Bearer {access_token}"
+    }
+
+    params = {
+        "time_range": time_range,
+        "limit": limit,
+    }
+    url = f"{API_BASE_URL}/me/top/artists?{urllib.parse.urlencode(params)}"
+    try:
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            status = resp.getcode()
+            body_text = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as he:
+        body = he.read().decode("utf-8") if hasattr(he, "read") else ""
+        if he.code == 401:
+            return RedirectResponse(url="/api/auth/login")
+        raise HTTPException(status_code=502, detail=f"Spotify API request failed: {he.code} {body}")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Spotify API request failed: {e}")
+
+    if status < 200 or status >= 300:
+        raise HTTPException(status_code=502, detail=f"Spotify API returned {status}: {body_text}")
+
+    try:
+        data = json.loads(body_text)
+    except Exception:
+        raise HTTPException(status_code=502, detail="Failed to parse Spotify response")
+
+    items = data.get("items", [])
+    artists = []
+    for a in items:
+        artists.append({
+            "id": a.get("id"),
+            "name": a.get("name"),
+            "genres": a.get("genres", []),
+            "images": a.get("images", []),
+            "popularity": a.get("popularity"),
+            "external_url": (a.get("external_urls") or {}).get("spotify"),
+        })
+
+    return {"artists": artists}
+
 @api_router.get("/routes")
 def list_routes():
     return [r.path for r in app.router.routes]
