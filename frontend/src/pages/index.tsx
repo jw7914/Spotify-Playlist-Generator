@@ -3,7 +3,8 @@ import { Navbar } from "@/components/navbar";
 
 export default function IndexPage() {
   return (
-    <>
+    <div className="relative flex flex-col h-screen bg-black">
+      {" "}
       <Navbar></Navbar>
       <main className="flex flex-col items-center w-full px-6">
         <section className="w-full max-w-6xl mt-12">
@@ -33,6 +34,6 @@ export default function IndexPage() {
           </div>
         </section>
       </main>
-    </>
+    </div>
   );
 }
