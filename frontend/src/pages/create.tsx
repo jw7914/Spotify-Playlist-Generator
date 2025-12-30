@@ -161,7 +161,7 @@ export default function CreateWithAIPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold">AI Playlist Generator</h1>
-            <p className="text-xs text-zinc-400">Powered by OpenAI & Spotify</p>
+            <p className="text-xs text-zinc-400">Powered by Gemini & Spotify</p>
           </div>
         </div>
 
