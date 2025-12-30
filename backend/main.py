@@ -3,7 +3,9 @@ from pydantic import BaseModel
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-import google.generativeai as genai
+from fastapi.middleware.cors import CORSMiddleware
+from google import genai
+from google.genai import types
 import urllib.parse
 import urllib.request
 import urllib.error
@@ -31,7 +33,19 @@ SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 REDIRECT_URI = os.getenv("REDIRECT_URI") or "http://127.0.0.1:8000/api/auth/callback"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-genai.configure(api_key=GEMINI_API_KEY)
+client = genai.Client(api_key=GEMINI_API_KEY)
+
+# --- Pydantic Models ---
+class PromptRequest(BaseModel):
+    prompt: str
+
+class ChatHistoryItem(BaseModel):
+    role: str
+    parts: list[str]
+
+class ChatRequest(BaseModel):
+    message: str
+    history: list[ChatHistoryItem] = []
 
 # --- API Routes ---
 @api_router.get("/auth/login")
@@ -50,6 +64,7 @@ def login():
     resp = RedirectResponse(url=auth_url)
     resp.set_cookie("spotify_oauth_state", state, max_age=STATE_TTL, httponly=True, samesite="lax")
     return resp
+
 @api_router.get("/auth/callback")
 def callback(request: Request, code: str | None = None, state: str | None = None, error: str | None = None):
     # 1. Handle "Access Denied" or upstream errors (e.g. user clicked Cancel)
@@ -472,23 +487,80 @@ def get_me(request: Request):
 
     return {"user": user}
 
-class PromptRequest(BaseModel):
-    prompt: str
-    
-@api_router.post("/generate")
-async def generate_text(request: PromptRequest):
-    try:
-        # utilize the async method to ensure the server remains non-blocking
-        response = await model.generate_content_async(request.prompt)
-        return {"response": response.text}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @api_router.get("/routes")
 def list_routes():
     return [r.path for r in app.router.routes]
+@api_router.post("/chat")
+async def chat_endpoint(request: ChatRequest):
+    try:
+        # 1. Prepare the conversation history
+        # We start with an empty list for the SDK contents
+        chat_contents = []
 
+        # 2. Add System Instruction (Optional but recommended)
+        # This gives the AI its "persona" as a music assistant.
+        # Note: In the new SDK, system instructions are often passed as config, 
+        # but a simple way is to prepend it as a 'user' message or rely on model config.
+        # For simplicity here, we stick to the message history.
+        
+        # 3. Convert Frontend History to SDK 'Content' objects
+        for item in request.history:
+            chat_contents.append(types.Content(
+                role=item.role, # Must be "user" or "model"
+                parts=[types.Part.from_text(text=p) for p in item.parts]
+            ))
 
+        # 4. Add the CURRENT user message to the end
+        chat_contents.append(types.Content(
+            role="user",
+            parts=[types.Part.from_text(text=request.message)]
+        ))
+
+        # 5. Call the API with the FULL history
+        # We use the model you confirmed works: 'gemini-2.5-flash'
+        response = await client.aio.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=chat_contents
+        )
+
+        # 6. Return the text AND the updated history
+        # The frontend needs the new history to maintain state
+        updated_history = request.history + [
+            ChatHistoryItem(role="user", parts=[request.message]),
+            ChatHistoryItem(role="model", parts=[response.text])
+        ]
+
+        return {
+            "text": response.text,
+            "history": updated_history
+        }
+
+    except Exception as e:
+        print(f"Chat Error: {e}") # Check your terminal if this fails!
+        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
+
+@api_router.get("/test")
+async def test_ai_connection(q: str):
+    """
+    Simple GET endpoint to test if Gemini is reachable.
+    Usage: http://localhost:8000/api/test?q=Hello
+    """
+    try:
+        response = await client.aio.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=q
+        )
+        return {
+            "status": "ok",
+            "query": q,
+            "ai_response": response.text
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "detail": str(e)
+        }
+    
 app.include_router(api_router)
 
 app.mount(
@@ -499,10 +571,6 @@ app.mount(
 
 @app.get("/{full_path:path}")
 async def serve_react_app(full_path: str):
-    """
-    Serves static files from the root (like favicon.ico)
-    and serves index.html for all other non-API, non-asset routes.
-    """
     index_path = FRONTEND_DIST / "index.html"
     file_path = FRONTEND_DIST / full_path
 
@@ -510,5 +578,10 @@ async def serve_react_app(full_path: str):
         return FileResponse(file_path)
 
     if not index_path.exists():
-        raise HTTPException(status_code=404, detail="React app index.html not found")
+        return {"error": "Frontend not found. Did you run 'npm run build'?"}
+    
     return FileResponse(index_path)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
