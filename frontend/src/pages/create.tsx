@@ -9,6 +9,7 @@ import {
   Chip,
 } from "@heroui/react";
 import { Send, Sparkles, Bot, User, Music, Disc3 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 
 // --- Types ---
 interface Message {
@@ -54,7 +55,7 @@ export default function CreateWithAIPage() {
     currentMessages: Message[]
   ): BackendHistoryItem[] => {
     return currentMessages.map((msg) => ({
-      role: msg.role === "ai" ? "model" : "user", // Gemini uses "model", UI uses "ai"
+      role: msg.role === "ai" ? "model" : "user",
       parts: [msg.content],
     }));
   };
@@ -71,7 +72,6 @@ export default function CreateWithAIPage() {
       type: "text",
     };
 
-    // Update state immediately so user sees their message
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput("");
@@ -81,7 +81,7 @@ export default function CreateWithAIPage() {
       // 2. Prepare Payload
       const payload = {
         message: userMsg.content,
-        history: getHistoryForBackend(messages), // Send previous history (excluding current new message is usually safer for SDKs, or include it depending on backend logic. Your backend handles the new message separately in the 'message' field, so we just send 'messages' which is the history *before* this new turn.)
+        history: getHistoryForBackend(messages),
       };
 
       // 3. Call the API
@@ -99,9 +99,8 @@ export default function CreateWithAIPage() {
 
       const data = await response.json();
       console.log(data);
+
       // 4. Process AI Response
-      // Logic to detect if the AI is suggesting a playlist (client-side heuristic)
-      // In a real app, you might ask the AI to return JSON to trigger this deterministically.
       const isPlaylistContext =
         data.text.toLowerCase().includes("playlist") ||
         data.text.toLowerCase().includes("track list") ||
@@ -110,17 +109,16 @@ export default function CreateWithAIPage() {
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
         role: "ai",
-        content: data.text, // The text response from Gemini
+        content: data.text,
         type: isPlaylistContext ? "playlist-preview" : "text",
         playlistData: isPlaylistContext
-          ? { name: "Generated Mix", trackCount: "20+" } // Placeholder for now
+          ? { name: "Generated Mix", trackCount: "20+" } // Placeholder
           : undefined,
       };
 
       setMessages((prev) => [...prev, aiResponse]);
     } catch (error) {
       console.error("Chat failed", error);
-      // Optional: Add an error message to chat
       const errorMsg: Message = {
         id: Date.now().toString(),
         role: "ai",
@@ -173,7 +171,11 @@ export default function CreateWithAIPage() {
             {messages.map((msg) => (
               <div
                 key={msg.id}
-                className={`flex gap-4 max-w-2xl ${msg.role === "user" ? "self-end flex-row-reverse" : "self-start"}`}
+                className={`flex gap-4 max-w-2xl ${
+                  msg.role === "user"
+                    ? "self-end flex-row-reverse"
+                    : "self-start"
+                }`}
               >
                 {/* Avatar */}
                 <div className="shrink-0">
@@ -193,13 +195,44 @@ export default function CreateWithAIPage() {
                 {/* Message Bubble */}
                 <div className="flex flex-col gap-2">
                   <div
-                    className={`p-4 rounded-2xl text-sm md:text-base leading-relaxed whitespace-pre-wrap ${
+                    className={`p-4 rounded-2xl text-sm md:text-base leading-relaxed ${
                       msg.role === "user"
                         ? "bg-[#1DB954] text-black rounded-tr-none font-medium"
                         : "bg-zinc-800 text-zinc-100 rounded-tl-none border border-zinc-700"
                     }`}
                   >
-                    {msg.content}
+                    <ReactMarkdown
+                      components={{
+                        // Bold text
+                        strong: ({ node, ...props }) => (
+                          <span className="font-bold" {...props} />
+                        ),
+                        // Unordered lists (bullets)
+                        ul: ({ node, ...props }) => (
+                          <ul
+                            className="list-disc pl-4 mb-2 space-y-1"
+                            {...props}
+                          />
+                        ),
+                        // List items
+                        li: ({ node, ...props }) => (
+                          <li className="pl-1" {...props} />
+                        ),
+                        // Paragraphs
+                        p: ({ node, ...props }) => (
+                          <p className="mb-2 last:mb-0" {...props} />
+                        ),
+                        // Headers
+                        h3: ({ node, ...props }) => (
+                          <h3
+                            className="text-lg font-bold mt-3 mb-1"
+                            {...props}
+                          />
+                        ),
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
                   </div>
 
                   {/* Rich Media: Playlist Preview Card */}
@@ -289,7 +322,9 @@ export default function CreateWithAIPage() {
               <Button
                 isIconOnly
                 radius="full"
-                className={`bg-[#1DB954] text-black ${!input.trim() ? "opacity-50 cursor-not-allowed" : ""}`}
+                className={`bg-[#1DB954] text-black ${
+                  !input.trim() ? "opacity-50 cursor-not-allowed" : ""
+                }`}
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading}
               >
