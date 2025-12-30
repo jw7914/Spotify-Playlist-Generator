@@ -18,16 +18,13 @@ import {
 } from "@heroui/react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useMemo } from "react";
-import { useAuth } from "@/hooks/useAuth"; // Import the hook
-
-// ... (Keep your MusicIcon component here) ...
+import { useAuth } from "@/hooks/useAuth";
 
 export const Navbar = () => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // Use the shared Auth state
   const { user, isAuthenticated, isLoading, logout } = useAuth();
 
   const navLinks = useMemo(
@@ -45,7 +42,6 @@ export const Navbar = () => {
     setIsMenuOpen(false);
   };
 
-  // Helper to get avatar URL safely
   const avatarUrl = user?.images?.[0]?.url;
 
   return (
@@ -94,7 +90,6 @@ export const Navbar = () => {
             <Skeleton className="rounded-full w-10 h-10 bg-zinc-800" />
           </NavbarItem>
         ) : isAuthenticated && user ? (
-          // --- LOGGED IN DROPDOWN ---
           <Dropdown
             placement="bottom-end"
             className="dark bg-zinc-900 border border-zinc-800"
@@ -112,10 +107,16 @@ export const Navbar = () => {
                 />
               </DropdownTrigger>
             </NavbarItem>
-            <DropdownMenu aria-label="Profile Actions" variant="flat">
+
+            {/* 1. Add disabledKeys here */}
+            <DropdownMenu
+              aria-label="Profile Actions"
+              variant="flat"
+              disabledKeys={["profile_info"]}
+            >
               <DropdownItem
                 key="profile_info"
-                className="h-14 gap-2 text-white"
+                className="h-14 gap-2 text-white opacity-100"
                 textValue="Signed in as"
               >
                 <p className="font-semibold">Signed in as</p>
@@ -159,10 +160,8 @@ export const Navbar = () => {
 
       <NavbarMenu className="bg-black pt-6">
         {navLinks.map((item, index) => (
-          // ... (Mobile menu items remain similar)
           <NavbarMenuItem key={index}>{/*...*/}</NavbarMenuItem>
         ))}
-        {/* Mobile Auth */}
         <div className="border-t border-zinc-800 mt-6 pt-6 flex flex-col gap-4">
           {isAuthenticated ? (
             <>
@@ -185,7 +184,6 @@ export const Navbar = () => {
               </NavbarMenuItem>
             </>
           ) : (
-            // ... Login Button
             <NavbarMenuItem>Login...</NavbarMenuItem>
           )}
         </div>
