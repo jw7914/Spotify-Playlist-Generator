@@ -105,6 +105,14 @@ def callback(request: Request, code: str | None = None, state: str | None = None
     resp.set_cookie("spotify_oauth_state", "", max_age=0)
     return resp
 
+@api_router.post("/auth/logout")
+def logout(response: Response):
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/")
+    response.delete_cookie("expires_at", path="/")
+    response.delete_cookie("spotify_oauth_state", path="/")
+    return {"message": "Logged out"}
+
 @api_router.get("/auth/status")
 def auth_status(request: Request):
     access_token = request.cookies.get("access_token")

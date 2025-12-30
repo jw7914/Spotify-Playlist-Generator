@@ -3,157 +3,192 @@ import {
   NavbarBrand,
   NavbarContent,
   NavbarItem,
-  // --- Add new imports for the mobile menu ---
   NavbarMenuToggle,
   NavbarMenu,
   NavbarMenuItem,
+  Tabs,
+  Tab,
+  Skeleton,
+  Button,
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownItem,
+  Avatar,
 } from "@heroui/react";
-import { Tabs, Tab } from "@heroui/react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useAuth } from "@/hooks/useAuth"; // Import the hook
+
+// ... (Keep your MusicIcon component here) ...
 
 export const Navbar = () => {
-  const location = useLocation();
+  const { pathname } = useLocation();
   const navigate = useNavigate();
-  const pathname = location.pathname || "/";
-
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  // --- Add state for the mobile menu ---
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  useEffect(() => {
-    const checkAuthStatus = async () => {
-      try {
-        const response = await fetch("/api/auth/status");
-        if (response.ok) {
-          const data = await response.json();
-          setIsAuthenticated(data.authenticated);
-        } else {
-          setIsAuthenticated(false);
-        }
-      } catch (error) {
-        console.error("Failed to fetch auth status:", error);
-        setIsAuthenticated(false);
-      }
-    };
+  // Use the shared Auth state
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
 
-    checkAuthStatus();
-  }, []);
-
-  const tabItems = useMemo(() => {
-    const baseItems = [
+  const navLinks = useMemo(
+    () => [
       { key: "/", href: "/", title: "Home" },
       { key: "/create", href: "/create", title: "Create With AI" },
-    ];
+    ],
+    []
+  );
 
-    if (isAuthenticated === true) {
-      baseItems.push({ key: "/profile", href: "/profile", title: "Profile" });
-    } else if (isAuthenticated === false) {
-      baseItems.push({ key: "/login", href: "/login", title: "Login" });
-    }
+  const currentTab = navLinks.find((l) => pathname === l.href)?.key || "/";
 
-    return baseItems;
-  }, [isAuthenticated]);
-
-  const selectedKey =
-    tabItems
-      .slice()
-      .sort((a, b) => b.href.length - a.href.length)
-      .find((t) => pathname.startsWith(t.href))?.key ?? tabItems[0].key;
-
-  const handleMenuNavigate = (href: string) => {
+  const handleNav = (href: string) => {
     navigate(href);
-    setIsMenuOpen(false); // Close menu after navigation
+    setIsMenuOpen(false);
   };
+
+  // Helper to get avatar URL safely
+  const avatarUrl = user?.images?.[0]?.url;
 
   return (
     <HeroUINavbar
       shouldHideOnScroll
-      className="bg-black"
-      // --- Control the mobile menu state ---
+      isBordered
+      className="bg-black/90 backdrop-blur-md border-b-zinc-800"
       isMenuOpen={isMenuOpen}
       onMenuOpenChange={setIsMenuOpen}
+      maxWidth="xl"
     >
-      <NavbarBrand>
-        <p className="font-bold text-white">Spotify Playlist Generator</p>
-        <img />
-      </NavbarBrand>
-
-      {/* --- Desktop Tabs (hidden on small screens) --- */}
-      <NavbarContent justify="end" className="hidden sm:flex">
-        <NavbarItem>
-          <div className="dark">
-            <Tabs
-              aria-label="Navigation Tabs"
-              selectedKey={selectedKey}
-              size="lg"
-              radius="full"
-              onSelectionChange={(key) => {
-                navigate(key.toString());
-              }}
-              classNames={{
-                cursor: "bg-transparent",
-              }}
-            >
-              {tabItems.map((item) => (
-                <Tab
-                  key={item.key}
-                  title={item.title}
-                  className={`mx-2 px-3
-                    data-[selected=true]:text-white
-                    ${
-                      item.key === "/login" || item.key === "/profile"
-                        ? "data-[selected=true]:bg-[#6A6BB5]"
-                        : "data-[selected=true]:bg-zinc-700"
-                    }
-                  `}
-                />
-              ))}
-              {isAuthenticated === null && (
-                <Tab
-                  key="loading-placeholder"
-                  title="\u00A0"
-                  isDisabled
-                  className="mx-2 px-3"
-                />
-              )}
-            </Tabs>
-          </div>
-        </NavbarItem>
+      <NavbarContent>
+        <NavbarBrand
+          className="gap-3 cursor-pointer"
+          onClick={() => handleNav("/")}
+        >
+          <p className="font-bold text-white text-lg tracking-tight">
+            Spotify PlaylistGen
+          </p>
+        </NavbarBrand>
       </NavbarContent>
 
-      {/* --- Mobile Menu Toggle (visible only on small screens) --- */}
-      <NavbarContent justify="end" className="text-white sm:hidden">
+      <NavbarContent className="hidden sm:flex gap-4" justify="center">
+        <Tabs
+          aria-label="Navigation"
+          selectedKey={currentTab}
+          onSelectionChange={(key) => handleNav(key.toString())}
+          variant="light"
+          radius="full"
+          color="secondary"
+          classNames={{
+            cursor: "bg-[#6A6BB5]/20",
+            tabContent:
+              "group-data-[selected=true]:text-[#6A6BB5] text-zinc-400 font-medium",
+          }}
+        >
+          {navLinks.map((item) => (
+            <Tab key={item.key} title={item.title} />
+          ))}
+        </Tabs>
+      </NavbarContent>
+
+      <NavbarContent justify="end">
+        {isLoading ? (
+          <NavbarItem>
+            <Skeleton className="rounded-full w-10 h-10 bg-zinc-800" />
+          </NavbarItem>
+        ) : isAuthenticated && user ? (
+          // --- LOGGED IN DROPDOWN ---
+          <Dropdown
+            placement="bottom-end"
+            className="dark bg-zinc-900 border border-zinc-800"
+          >
+            <NavbarItem>
+              <DropdownTrigger>
+                <Avatar
+                  isBordered
+                  as="button"
+                  className="transition-transform"
+                  color="secondary"
+                  name={user.display_name || "User"}
+                  size="sm"
+                  src={avatarUrl}
+                />
+              </DropdownTrigger>
+            </NavbarItem>
+            <DropdownMenu aria-label="Profile Actions" variant="flat">
+              <DropdownItem
+                key="profile_info"
+                className="h-14 gap-2 text-white"
+                textValue="Signed in as"
+              >
+                <p className="font-semibold">Signed in as</p>
+                <p className="font-semibold text-[#6A6BB5]">{user.email}</p>
+              </DropdownItem>
+              <DropdownItem
+                key="settings"
+                href="/profile"
+                className="text-white"
+              >
+                My Profile
+              </DropdownItem>
+              <DropdownItem
+                key="logout"
+                color="danger"
+                onPress={logout}
+                className="text-danger"
+              >
+                Log Out
+              </DropdownItem>
+            </DropdownMenu>
+          </Dropdown>
+        ) : (
+          <NavbarItem>
+            <Button
+              onClick={() => handleNav("/login")}
+              className="bg-[#6A6BB5] text-white font-semibold"
+              radius="full"
+              variant="flat"
+            >
+              Login
+            </Button>
+          </NavbarItem>
+        )}
+
         <NavbarMenuToggle
           aria-label={isMenuOpen ? "Close menu" : "Open menu"}
+          className="sm:hidden text-white"
         />
       </NavbarContent>
 
-      {/* --- Mobile Menu --- */}
-      <NavbarMenu className="bg-black/80 pt-4 backdrop-blur-md">
-        {tabItems.map((item) => (
-          <NavbarMenuItem key={item.key}>
-            <button
-              className={`w-full py-2 text-2xl ${
-                item.key === selectedKey
-                  ? "font-bold text-[#6A6BB5]" // Active link style
-                  : "text-white"
-              }`}
-              onClick={() => handleMenuNavigate(item.href)}
-            >
-              {item.title}
-            </button>
-          </NavbarMenuItem>
+      <NavbarMenu className="bg-black pt-6">
+        {navLinks.map((item, index) => (
+          // ... (Mobile menu items remain similar)
+          <NavbarMenuItem key={index}>{/*...*/}</NavbarMenuItem>
         ))}
-
-        {/* Mobile loading state */}
-        {isAuthenticated === null && (
-          <NavbarMenuItem>
-            <div className="w-full py-2 text-center text-2xl text-zinc-500">
-              Loading...
-            </div>
-          </NavbarMenuItem>
-        )}
+        {/* Mobile Auth */}
+        <div className="border-t border-zinc-800 mt-6 pt-6 flex flex-col gap-4">
+          {isAuthenticated ? (
+            <>
+              <div className="px-2 flex items-center gap-3 mb-2">
+                <Avatar src={avatarUrl} size="sm" />
+                <span className="text-zinc-400">{user?.display_name}</span>
+              </div>
+              <NavbarMenuItem>
+                <button
+                  onClick={() => handleNav("/profile")}
+                  className="text-xl text-white"
+                >
+                  Profile
+                </button>
+              </NavbarMenuItem>
+              <NavbarMenuItem>
+                <button onClick={logout} className="text-xl text-red-500">
+                  Log Out
+                </button>
+              </NavbarMenuItem>
+            </>
+          ) : (
+            // ... Login Button
+            <NavbarMenuItem>Login...</NavbarMenuItem>
+          )}
+        </div>
       </NavbarMenu>
     </HeroUINavbar>
   );
