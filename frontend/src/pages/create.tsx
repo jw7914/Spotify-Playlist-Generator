@@ -10,13 +10,19 @@ import {
 } from "@heroui/react";
 import { Send, Sparkles, Bot, User, Music, Disc3 } from "lucide-react";
 
-// Types for our chat state
+// --- Types ---
 interface Message {
   id: string;
   role: "user" | "ai";
   content: string;
-  type?: "text" | "playlist-preview"; // To support rich media responses
-  playlistData?: any; // Mock data for a generated playlist
+  type?: "text" | "playlist-preview";
+  playlistData?: any;
+}
+
+// Backend expects this structure for history
+interface BackendHistoryItem {
+  role: "user" | "model";
+  parts: string[];
 }
 
 export default function CreateWithAIPage() {
@@ -41,12 +47,23 @@ export default function CreateWithAIPage() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isLoading]);
 
-  // Handle sending a message
+  // --- Helper: Convert Frontend Messages to Backend History ---
+  const getHistoryForBackend = (
+    currentMessages: Message[]
+  ): BackendHistoryItem[] => {
+    return currentMessages.map((msg) => ({
+      role: msg.role === "ai" ? "model" : "user", // Gemini uses "model", UI uses "ai"
+      parts: [msg.content],
+    }));
+  };
+
+  // --- Handle Sending ---
   const handleSend = async () => {
     if (!input.trim()) return;
 
+    // 1. Add User Message to UI
     const userMsg: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -54,32 +71,67 @@ export default function CreateWithAIPage() {
       type: "text",
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    // Update state immediately so user sees their message
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
     setInput("");
     setIsLoading(true);
 
-    // --- SIMULATE AI RESPONSE (Replace this with your actual API call) ---
-    setTimeout(() => {
-      const isPlaylistRequest =
-        userMsg.content.toLowerCase().includes("playlist") ||
-        userMsg.content.toLowerCase().includes("songs");
+    try {
+      // 2. Prepare Payload
+      const payload = {
+        message: userMsg.content,
+        history: getHistoryForBackend(messages), // Send previous history (excluding current new message is usually safer for SDKs, or include it depending on backend logic. Your backend handles the new message separately in the 'message' field, so we just send 'messages' which is the history *before* this new turn.)
+      };
+
+      // 3. Call the API
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log(data);
+      // 4. Process AI Response
+      // Logic to detect if the AI is suggesting a playlist (client-side heuristic)
+      // In a real app, you might ask the AI to return JSON to trigger this deterministically.
+      const isPlaylistContext =
+        data.text.toLowerCase().includes("playlist") ||
+        data.text.toLowerCase().includes("track list") ||
+        data.text.toLowerCase().includes("songs");
 
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
         role: "ai",
-        content: isPlaylistRequest
-          ? "I've curated a mix based on that vibe. Here is 'Neon Drive' - a collection of synthwave and night pop."
-          : "I can definitely help with that. Could you be a bit more specific? For example, are you looking for high energy or something to relax to?",
-        type: isPlaylistRequest ? "playlist-preview" : "text",
-        playlistData: isPlaylistRequest
-          ? { name: "Neon Drive", trackCount: 24 }
+        content: data.text, // The text response from Gemini
+        type: isPlaylistContext ? "playlist-preview" : "text",
+        playlistData: isPlaylistContext
+          ? { name: "Generated Mix", trackCount: "20+" } // Placeholder for now
           : undefined,
       };
 
       setMessages((prev) => [...prev, aiResponse]);
+    } catch (error) {
+      console.error("Chat failed", error);
+      // Optional: Add an error message to chat
+      const errorMsg: Message = {
+        id: Date.now().toString(),
+        role: "ai",
+        content:
+          "Sorry, I'm having trouble connecting to the server right now.",
+        type: "text",
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
       setIsLoading(false);
-    }, 1500);
-    // ---------------------------------------------------------------------
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -98,7 +150,7 @@ export default function CreateWithAIPage() {
 
   return (
     <div className="flex flex-col h-screen bg-black text-white selection:bg-purple-500/30 overflow-hidden">
-      {/* Main Chat Area - fills remaining height */}
+      {/* Main Chat Area */}
       <main className="flex-1 relative flex flex-col max-w-5xl w-full mx-auto p-4 md:p-6 overflow-hidden">
         {/* Background Gradients */}
         <div className="fixed top-20 left-10 w-96 h-96 bg-purple-600/10 rounded-full blur-[100px] pointer-events-none" />
@@ -141,7 +193,7 @@ export default function CreateWithAIPage() {
                 {/* Message Bubble */}
                 <div className="flex flex-col gap-2">
                   <div
-                    className={`p-4 rounded-2xl text-sm md:text-base leading-relaxed ${
+                    className={`p-4 rounded-2xl text-sm md:text-base leading-relaxed whitespace-pre-wrap ${
                       msg.role === "user"
                         ? "bg-[#1DB954] text-black rounded-tr-none font-medium"
                         : "bg-zinc-800 text-zinc-100 rounded-tl-none border border-zinc-700"
@@ -202,7 +254,7 @@ export default function CreateWithAIPage() {
           </div>
         </ScrollShadow>
 
-        {/* Suggestions (Only show if chat is empty-ish) */}
+        {/* Suggestions */}
         {messages.length < 3 && (
           <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide z-10">
             {starterPrompts.map((prompt) => (
@@ -223,9 +275,10 @@ export default function CreateWithAIPage() {
         <div className="bg-black z-20">
           <Input
             classNames={{
-              input: "text-base text-white placeholder:text-zinc-500",
+              input:
+                "text-base !text-white placeholder:text-zinc-500 !bg-transparent",
               inputWrapper:
-                "bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 focus-within:!bg-zinc-900 focus-within:!border-purple-500/50 rounded-full h-14 pl-6 pr-2 transition-all shadow-lg",
+                "bg-zinc-900 border border-zinc-800 data-[hover=true]:bg-zinc-900 focus-within:!bg-zinc-900 focus-within:!border-purple-500/50 rounded-full h-14 pl-6 pr-2 shadow-lg",
               innerWrapper: "gap-3",
             }}
             placeholder="Describe your mood, genre, or activity..."
@@ -236,7 +289,7 @@ export default function CreateWithAIPage() {
               <Button
                 isIconOnly
                 radius="full"
-                className={`bg-[#1DB954] text-black ${!input.trim() ? "opacity-50 cursor-not-allowed" : "hover:scale-105"}`}
+                className={`bg-[#1DB954] text-black ${!input.trim() ? "opacity-50 cursor-not-allowed" : ""}`}
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading}
               >
