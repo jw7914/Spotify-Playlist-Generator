@@ -5,7 +5,7 @@ import { Navbar } from "@/components/navbar";
 export default function LoginPage() {
   const handleLogin = () => {
     // Use the backend URL in development, otherwise use relative path for production
-    const backend = import.meta.env.DEV ? "http://localhost:8000" : "";
+    const backend = import.meta.env.DEV ? "http://127.0.0.1:8000" : "";
     window.location.href = `${backend}/api/auth/login`;
   };
 

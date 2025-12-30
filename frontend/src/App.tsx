@@ -1,4 +1,5 @@
 import { Route, Routes } from "react-router-dom";
+import { AuthProvider } from "./hooks/useAuth";
 
 import IndexPage from "@/pages/index";
 import PlaylistsPage from "@/pages/playlists";
@@ -9,14 +10,16 @@ import LoginPage from "@/pages/login";
 
 function App() {
   return (
-    <Routes>
-      <Route element={<IndexPage />} path="/" />
-      <Route element={<PlaylistsPage />} path="/playlists" />
-      <Route element={<TopArtistsPage />} path="/top-artists" />
-      <Route element={<ProfilePage />} path="/profile" />
-      <Route element={<LoginPage />} path="/login" />
-      <Route element={<NotFoundPage />} path="*" />
-    </Routes>
+    <AuthProvider>
+      <Routes>
+        <Route element={<IndexPage />} path="/" />
+        <Route element={<PlaylistsPage />} path="/playlists" />
+        <Route element={<TopArtistsPage />} path="/top-artists" />
+        <Route element={<ProfilePage />} path="/profile" />
+        <Route element={<LoginPage />} path="/login" />
+        <Route element={<NotFoundPage />} path="*" />
+      </Routes>
+    </AuthProvider>
   );
 }
 

@@ -108,7 +108,6 @@ export const Navbar = () => {
               </DropdownTrigger>
             </NavbarItem>
 
-            {/* 1. Add disabledKeys here */}
             <DropdownMenu
               aria-label="Profile Actions"
               variant="flat"
@@ -124,7 +123,7 @@ export const Navbar = () => {
               </DropdownItem>
               <DropdownItem
                 key="settings"
-                href="/profile"
+                onPress={() => navigate("/profile")}
                 className="text-white"
               >
                 My Profile
@@ -158,10 +157,19 @@ export const Navbar = () => {
         />
       </NavbarContent>
 
+      {/* --- Fixed Mobile Menu --- */}
       <NavbarMenu className="bg-black pt-6">
         {navLinks.map((item, index) => (
-          <NavbarMenuItem key={index}>{/*...*/}</NavbarMenuItem>
+          <NavbarMenuItem key={`${item.key}-${index}`}>
+            <button
+              className="w-full text-left text-lg text-white font-medium hover:text-[#6A6BB5] transition-colors py-2"
+              onClick={() => handleNav(item.href)}
+            >
+              {item.title}
+            </button>
+          </NavbarMenuItem>
         ))}
+
         <div className="border-t border-zinc-800 mt-6 pt-6 flex flex-col gap-4">
           {isAuthenticated ? (
             <>
@@ -172,19 +180,34 @@ export const Navbar = () => {
               <NavbarMenuItem>
                 <button
                   onClick={() => handleNav("/profile")}
-                  className="text-xl text-white"
+                  className="w-full text-left text-lg text-white hover:text-[#6A6BB5]"
                 >
                   Profile
                 </button>
               </NavbarMenuItem>
               <NavbarMenuItem>
-                <button onClick={logout} className="text-xl text-red-500">
+                <button
+                  onClick={() => {
+                    logout();
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full text-left text-lg text-red-500 hover:text-red-400"
+                >
                   Log Out
                 </button>
               </NavbarMenuItem>
             </>
           ) : (
-            <NavbarMenuItem>Login...</NavbarMenuItem>
+            <NavbarMenuItem>
+              <Button
+                fullWidth
+                onClick={() => handleNav("/login")}
+                className="bg-[#6A6BB5] text-white font-semibold"
+                size="lg"
+              >
+                Login
+              </Button>
+            </NavbarMenuItem>
           )}
         </div>
       </NavbarMenu>
