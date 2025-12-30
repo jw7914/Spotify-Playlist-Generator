@@ -1,7 +1,9 @@
 from pathlib import Path
+from pydantic import BaseModel
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+import google.generativeai as genai
 import urllib.parse
 import urllib.request
 import urllib.error
@@ -27,8 +29,9 @@ API_KEY = os.getenv("GEMINI_API_KEY")
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 REDIRECT_URI = os.getenv("REDIRECT_URI") or "http://127.0.0.1:8000/api/auth/callback"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-
+genai.configure(api_key=GEMINI_API_KEY)
 
 # --- API Routes ---
 @api_router.get("/auth/login")
@@ -468,6 +471,18 @@ def get_me(request: Request):
     }
 
     return {"user": user}
+
+class PromptRequest(BaseModel):
+    prompt: str
+    
+@api_router.post("/generate")
+async def generate_text(request: PromptRequest):
+    try:
+        # utilize the async method to ensure the server remains non-blocking
+        response = await model.generate_content_async(request.prompt)
+        return {"response": response.text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/routes")
 def list_routes():
