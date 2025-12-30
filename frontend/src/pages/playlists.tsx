@@ -11,16 +11,26 @@ import {
 } from "@heroui/react";
 
 import { ExternalLink, Music, PlayCircle, Library } from "lucide-react";
-import { Navbar } from "@/components/navbar"; // Assuming you have this from previous steps
+import { Navbar } from "@/components/navbar";
 
 interface Playlist {
   id: string;
   name: string;
   owner: string;
   tracks_total: number;
-  images: { url: string }[];
+  images: { url: string }[] | null;
   external_url: string;
 }
+
+// ✅ Spotify-style musical note placeholder
+const DefaultPlaylistImage = () => (
+  <div className="w-full h-full flex items-center justify-center bg-zinc-900">
+    <Music
+      size={64}
+      className="text-white opacity-50 scale-90 transition-transform duration-500 group-hover:scale-100"
+    />
+  </div>
+);
 
 export default function PlaylistsPage() {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -53,9 +63,8 @@ export default function PlaylistsPage() {
       .finally(() => setLoading(false));
   }, [navigate]);
 
-  // Render a grid of Skeleton cards while loading
-  const renderSkeletons = () => {
-    return Array(8)
+  const renderSkeletons = () =>
+    Array(8)
       .fill(0)
       .map((_, i) => (
         <Card
@@ -76,7 +85,6 @@ export default function PlaylistsPage() {
           </div>
         </Card>
       ));
-  };
 
   if (error) {
     return (
@@ -98,7 +106,7 @@ export default function PlaylistsPage() {
       <Navbar />
 
       <main className="max-w-7xl mx-auto px-6 py-12">
-        {/* Header Section */}
+        {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-end mb-10 gap-4">
           <div>
             <div className="flex items-center gap-2 mb-2 text-green-500">
@@ -118,7 +126,7 @@ export default function PlaylistsPage() {
           </div>
         </div>
 
-        {/* Content Grid */}
+        {/* Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
           {loading ? (
             renderSkeletons()
@@ -132,30 +140,29 @@ export default function PlaylistsPage() {
               <Card
                 key={playlist.id}
                 isPressable
-                onPress={() => window.open(playlist.external_url, "_blank")}
                 className="group w-full bg-zinc-900/40 border border-white/5 hover:bg-zinc-800 transition-all duration-300"
                 shadow="sm"
+                onPress={() => window.open(playlist.external_url, "_blank")}
               >
                 <CardBody className="p-4 pb-2 overflow-visible relative">
-                  {/* Image Container with Hover Overlay */}
                   <div className="relative w-full aspect-square rounded-lg overflow-hidden shadow-lg mb-4">
-                    <Image
-                      alt={playlist.name}
-                      className="object-cover w-full h-full"
-                      src={
-                        playlist.images[0]?.url ||
-                        "https://via.placeholder.com/300/18181b/52525b?text=No+Cover"
-                      }
-                      radius="none"
-                      width="100%"
-                      height="100%"
-                      classNames={{
-                        wrapper: "w-full h-full",
-                        img: "w-full h-full scale-100 group-hover:scale-105 transition-transform duration-500",
-                      }}
-                    />
+                    {playlist.images && playlist.images.length > 0 ? (
+                      <Image
+                        alt={playlist.name}
+                        src={playlist.images[0].url}
+                        className="object-cover w-full h-full"
+                        radius="none"
+                        width="100%"
+                        height="100%"
+                        classNames={{
+                          wrapper: "w-full h-full",
+                          img: "w-full h-full scale-100 group-hover:scale-105 transition-transform duration-500",
+                        }}
+                      />
+                    ) : (
+                      <DefaultPlaylistImage />
+                    )}
 
-                    {/* Hover Overlay with Play Button */}
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center z-20 backdrop-blur-[1px]">
                       <PlayCircle
                         size={48}
@@ -164,7 +171,6 @@ export default function PlaylistsPage() {
                     </div>
                   </div>
 
-                  {/* Playlist Info */}
                   <div className="flex flex-col gap-1 items-start">
                     <h3
                       className="font-bold text-white text-md line-clamp-1 w-full"
