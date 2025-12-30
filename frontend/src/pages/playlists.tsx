@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Card, CardBody, CardFooter } from "@heroui/card";
+import { Image } from "@heroui/image";
+import { Button } from "@heroui/button";
+import { Skeleton } from "@heroui/skeleton";
+import { Chip } from "@heroui/chip";
+import { ExternalLink, Music, PlayCircle, Library } from "lucide-react";
+import { Navbar } from "@/components/navbar"; // Assuming you have this from previous steps
 
 interface Playlist {
   id: string;
@@ -41,44 +48,149 @@ export default function PlaylistsPage() {
       .finally(() => setLoading(false));
   }, [navigate]);
 
-  if (loading)
-    return <div className="text-center mt-10">Loading playlists...</div>;
-  if (error)
-    return <div className="text-center mt-10 text-red-500">{error}</div>;
+  // Render a grid of Skeleton cards while loading
+  const renderSkeletons = () => {
+    return Array(8)
+      .fill(0)
+      .map((_, i) => (
+        <Card
+          key={i}
+          className="w-full space-y-5 p-4 bg-zinc-900/50 border border-zinc-800"
+          radius="lg"
+        >
+          <Skeleton className="rounded-lg">
+            <div className="h-40 rounded-lg bg-default-300" />
+          </Skeleton>
+          <div className="space-y-3">
+            <Skeleton className="w-3/5 rounded-lg">
+              <div className="h-3 w-3/5 rounded-lg bg-default-200" />
+            </Skeleton>
+            <Skeleton className="w-4/5 rounded-lg">
+              <div className="h-3 w-4/5 rounded-lg bg-default-200" />
+            </Skeleton>
+          </div>
+        </Card>
+      ));
+  };
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-black text-white gap-4">
+        <div className="p-4 rounded-full bg-red-500/10 text-red-500">
+          <Music size={48} />
+        </div>
+        <h2 className="text-xl font-bold">Unable to load library</h2>
+        <p className="text-zinc-500">{error}</p>
+        <Button color="primary" onPress={() => window.location.reload()}>
+          Try Again
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-6">Your Spotify Playlists</h1>
-      {playlists.length === 0 ? (
-        <div className="text-center text-muted-foreground">
-          No playlists found.
+    <div className="min-h-screen bg-black text-foreground">
+      <Navbar />
+
+      <main className="max-w-7xl mx-auto px-6 py-12">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row justify-between items-end mb-10 gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-2 text-green-500">
+              <Library size={20} />
+              <span className="uppercase tracking-widest text-xs font-bold">
+                Library
+              </span>
+            </div>
+            <h1 className="text-4xl font-bold text-white">Your Playlists</h1>
+            <p className="text-zinc-400 mt-2">
+              Select a playlist to analyze or generate new content from.
+            </p>
+          </div>
+
+          <div className="text-zinc-500 text-sm font-medium">
+            {loading ? "Syncing..." : `${playlists.length} Playlists Found`}
+          </div>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-          {playlists.map((playlist) => (
-            <a
-              key={playlist.id}
-              href={playlist.external_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block bg-card rounded-lg shadow hover:shadow-lg transition p-4 group"
-            >
-              <img
-                src={playlist.images[0]?.url || "/vite.svg"}
-                alt={playlist.name}
-                className="w-full h-40 object-cover rounded mb-3 group-hover:scale-105 transition"
-              />
-              <div className="font-semibold text-lg mb-1">{playlist.name}</div>
-              <div className="text-sm text-muted-foreground mb-1">
-                Owner: {playlist.owner}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {playlist.tracks_total} tracks
-              </div>
-            </a>
-          ))}
+
+        {/* Content Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          {loading ? (
+            renderSkeletons()
+          ) : playlists.length === 0 ? (
+            <div className="col-span-full flex flex-col items-center justify-center py-20 text-zinc-500">
+              <Music size={64} className="mb-4 opacity-20" />
+              <p>No playlists found on your Spotify account.</p>
+            </div>
+          ) : (
+            playlists.map((playlist) => (
+              <Card
+                key={playlist.id}
+                isPressable
+                onPress={() => window.open(playlist.external_url, "_blank")}
+                className="group w-full bg-zinc-900/40 border border-white/5 hover:bg-zinc-800 transition-all duration-300"
+                shadow="sm"
+              >
+                <CardBody className="p-4 pb-2 overflow-visible relative">
+                  {/* Image Container with Hover Overlay */}
+                  <div className="relative w-full aspect-square rounded-lg overflow-hidden shadow-lg mb-4">
+                    <Image
+                      alt={playlist.name}
+                      className="object-cover w-full h-full"
+                      src={
+                        playlist.images[0]?.url ||
+                        "https://via.placeholder.com/300/18181b/52525b?text=No+Cover"
+                      }
+                      radius="none"
+                      width="100%"
+                      height="100%"
+                      classNames={{
+                        wrapper: "w-full h-full",
+                        img: "w-full h-full scale-100 group-hover:scale-105 transition-transform duration-500",
+                      }}
+                    />
+
+                    {/* Hover Overlay with Play Button */}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center z-20 backdrop-blur-[1px]">
+                      <PlayCircle
+                        size={48}
+                        className="text-white drop-shadow-lg scale-90 group-hover:scale-100 transition-transform duration-300"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Playlist Info */}
+                  <div className="flex flex-col gap-1 items-start">
+                    <h3
+                      className="font-bold text-white text-md line-clamp-1 w-full"
+                      title={playlist.name}
+                    >
+                      {playlist.name}
+                    </h3>
+                    <p className="text-xs text-zinc-400 line-clamp-1">
+                      By {playlist.owner}
+                    </p>
+                  </div>
+                </CardBody>
+
+                <CardFooter className="px-4 pb-4 pt-0 flex justify-between items-center text-small text-default-500">
+                  <Chip
+                    size="sm"
+                    variant="flat"
+                    className="bg-zinc-800 text-zinc-400 h-6 px-1"
+                  >
+                    {playlist.tracks_total} Tracks
+                  </Chip>
+                  <ExternalLink
+                    size={14}
+                    className="opacity-0 group-hover:opacity-50 transition-opacity"
+                  />
+                </CardFooter>
+              </Card>
+            ))
+          )}
         </div>
-      )}
+      </main>
     </div>
   );
 }
