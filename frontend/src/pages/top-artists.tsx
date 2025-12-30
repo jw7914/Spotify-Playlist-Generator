@@ -1,12 +1,16 @@
 import { Navbar } from "@/components/navbar";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardBody, CardFooter } from "@heroui/card";
-import { Image } from "@heroui/image";
-import { Button } from "@heroui/button";
-import { Chip } from "@heroui/chip";
-import { Skeleton } from "@heroui/skeleton";
-import { CircularProgress } from "@heroui/progress";
+import {
+  Card,
+  CardBody,
+  CardFooter,
+  Image,
+  Button,
+  Chip,
+  Skeleton,
+  CircularProgress,
+} from "@heroui/react";
 import { Trophy, ExternalLink, Mic2, TrendingUp, Music } from "lucide-react";
 
 interface Artist {

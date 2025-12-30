@@ -1,5 +1,5 @@
-import { Button } from "@heroui/button";
-import { Link } from "@heroui/link";
+import { Link, Button } from "@heroui/react";
+
 import { Navbar } from "@/components/navbar";
 
 export default function LoginPage() {

@@ -1,8 +1,6 @@
-import { Button } from "@heroui/button";
-import { Card, CardBody, CardHeader } from "@heroui/card";
-import { Chip } from "@heroui/chip";
 import { Navbar } from "@/components/navbar";
 import { Music, Sparkles, MessageCircleHeart, ArrowRight } from "lucide-react";
+import { Card, CardHeader, Chip, CardBody, Button } from "@heroui/react";
 
 export default function IndexPage() {
   return (

@@ -1,10 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardBody, CardFooter } from "@heroui/card";
-import { Image } from "@heroui/image";
-import { Button } from "@heroui/button";
-import { Skeleton } from "@heroui/skeleton";
-import { Chip } from "@heroui/chip";
+import {
+  Card,
+  CardBody,
+  CardFooter,
+  Image,
+  Button,
+  Skeleton,
+  Chip,
+} from "@heroui/react";
+
 import { ExternalLink, Music, PlayCircle, Library } from "lucide-react";
 import { Navbar } from "@/components/navbar"; // Assuming you have this from previous steps
 
