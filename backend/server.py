@@ -23,6 +23,12 @@ app = FastAPI(title="Spotify Playlist Generator")
 api_router = APIRouter(prefix="/api")
 STATE_TTL = 300
 
+API_KEY = os.getenv("GEMINI_API_KEY")
+SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
+SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
+REDIRECT_URI = os.getenv("REDIRECT_URI") or "http://127.0.0.1:8000/api/auth/callback"
+
+
 
 # --- API Routes ---
 @api_router.get("/auth/login")
@@ -30,10 +36,10 @@ def login():
     scope = "user-read-private user-read-email user-top-read"
     state = secrets.token_urlsafe(16)
     params = {
-        "client_id": os.getenv("SPOTIFY_CLIENT_ID"),
+        "client_id": SPOTIFY_CLIENT_ID,
         "response_type": "code",
         "scope": scope,
-        "redirect_uri": os.getenv("REDIRECT_URI") or "http://127.0.0.1:8000/api/auth/callback",
+        "redirect_uri": REDIRECT_URI,
         "show_dialog": True,
         "state": state,
     }
@@ -57,8 +63,8 @@ def callback(request: Request, code: str | None = None, state: str | None = None
         return RedirectResponse(url="/")
 
     # 4. Check Server Configuration
-    client_id = os.getenv("SPOTIFY_CLIENT_ID")
-    client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+    client_id = SPOTIFY_CLIENT_ID
+    client_secret = SPOTIFY_CLIENT_SECRET
     if not client_id or not client_secret:
         # Log this error internally if possible, then redirect user
         print("Error: Missing Spotify credentials")
@@ -66,7 +72,7 @@ def callback(request: Request, code: str | None = None, state: str | None = None
 
     # 5. Prepare Token Exchange
     token_url = "https://accounts.spotify.com/api/token"
-    redirect_uri = os.getenv("REDIRECT_URI") or "http://127.0.0.1:8000/api/auth/callback"
+    redirect_uri = REDIRECT_URI
     data = {
         "grant_type": "authorization_code",
         "code": code,
@@ -165,8 +171,8 @@ def get_playlists(request: Request):
             return RedirectResponse(url="/api/auth/login")
 
         token_url = "https://accounts.spotify.com/api/token"
-        client_id = os.getenv("SPOTIFY_CLIENT_ID")
-        client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+        client_id = SPOTIFY_CLIENT_ID
+        client_secret = SPOTIFY_CLIENT_SECRET
         if not client_id or not client_secret:
             raise HTTPException(status_code=500, detail="Missing Spotify client credentials on server")
 
@@ -273,8 +279,8 @@ def get_top_artists(request: Request, time_range: str = "medium_term", limit: in
             return RedirectResponse(url="/api/auth/login")
 
         token_url = "https://accounts.spotify.com/api/token"
-        client_id = os.getenv("SPOTIFY_CLIENT_ID")
-        client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+        client_id = SPOTIFY_CLIENT_ID
+        client_secret = SPOTIFY_CLIENT_SECRET
         if not client_id or not client_secret:
             raise HTTPException(status_code=500, detail="Missing Spotify client credentials on server")
 
@@ -382,8 +388,8 @@ def get_me(request: Request):
             return RedirectResponse(url="/api/auth/login")
 
         token_url = "https://accounts.spotify.com/api/token"
-        client_id = os.getenv("SPOTIFY_CLIENT_ID")
-        client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
+        client_id = SPOTIFY_CLIENT_ID
+        client_secret = SPOTIFY_CLIENT_SECRET
         if not client_id or not client_secret:
             raise HTTPException(status_code=500, detail="Missing Spotify client credentials on server")
 
