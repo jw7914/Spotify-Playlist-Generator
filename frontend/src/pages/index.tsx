@@ -1,9 +1,20 @@
 import { Navbar } from "@/components/navbar";
 import { Music, Sparkles, MessageCircleHeart, ArrowRight } from "lucide-react";
-import { Card, CardHeader, Chip, CardBody, Button } from "@heroui/react";
+import {
+  Card,
+  CardHeader,
+  Chip,
+  CardBody,
+  Button,
+  Skeleton,
+} from "@heroui/react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function IndexPage() {
+  // Get auth state
+  const { isAuthenticated, isLoading } = useAuth();
+
   return (
     <div className="relative min-h-screen bg-black text-foreground overflow-hidden selection:bg-green-500/30">
       {/* Background Gradients */}
@@ -43,17 +54,34 @@ export default function IndexPage() {
             tailored to your exact mood, nostalgia, or aesthetic.
           </p>
 
-          {/* CTA Buttons */}
+          {/* CTA Buttons - CONDITIONAL LOGIC ADDED HERE */}
           <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto mt-4">
-            <Button
-              as={Link}
-              to="/login"
-              size="lg"
-              className="bg-[#1DB954] text-black font-semibold hover:bg-[#1ed760] transition-all shadow-[0_0_20px_rgba(29,185,84,0.3)]"
-              endContent={<ArrowRight size={18} />}
-            >
-              Connect Spotify
-            </Button>
+            {isLoading ? (
+              // Loading State (prevents flash)
+              <Skeleton className="w-48 h-12 rounded-xl bg-zinc-800" />
+            ) : isAuthenticated ? (
+              // Logged In: Show "Start Creating" instead of Login
+              <Button
+                as={Link}
+                to="/create"
+                size="lg"
+                className="bg-[#6A6BB5] text-white font-semibold hover:bg-[#5a5bad] transition-all shadow-[0_0_20px_rgba(106,107,181,0.3)]"
+                endContent={<Sparkles size={18} />}
+              >
+                Start Creating
+              </Button>
+            ) : (
+              // Logged Out: Show "Connect Spotify"
+              <Button
+                as={Link}
+                to="/login"
+                size="lg"
+                className="bg-[#1DB954] text-black font-semibold hover:bg-[#1ed760] transition-all shadow-[0_0_20px_rgba(29,185,84,0.3)]"
+                endContent={<ArrowRight size={18} />}
+              >
+                Connect Spotify
+              </Button>
+            )}
           </div>
         </section>
 

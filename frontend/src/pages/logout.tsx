@@ -1,19 +1,20 @@
 import { useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import { Navbar } from "@/components/navbar";
 
-export default function LoginPage() {
+export default function LogoutPage() {
+  const { logout } = useAuth();
+
   useEffect(() => {
-    // This logic runs immediately when the page loads
-    const backend = import.meta.env.DEV ? "http://127.0.0.1:8000" : "";
-    window.location.href = `${backend}/api/auth/login`;
-  }, []);
+    logout();
+  }, [logout]);
 
   return (
     <>
       <Navbar />
       <div className="min-h-screen flex items-center justify-center bg-black text-white">
         <div className="text-center animate-pulse">
-          <h1 className="text-2xl font-bold mb-2">Logging in...</h1>
+          <h1 className="text-2xl font-bold mb-2">Signing out...</h1>
           <p className="text-zinc-500">Please wait a moment.</p>
         </div>
       </div>
