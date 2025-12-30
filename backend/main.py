@@ -32,6 +32,7 @@ SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 REDIRECT_URI = os.getenv("REDIRECT_URI") or "http://127.0.0.1:8000/api/auth/callback"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = "gemma-3-12b-it"
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
@@ -490,6 +491,7 @@ def get_me(request: Request):
 @api_router.get("/routes")
 def list_routes():
     return [r.path for r in app.router.routes]
+
 @api_router.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     try:
@@ -517,9 +519,8 @@ async def chat_endpoint(request: ChatRequest):
         ))
 
         # 5. Call the API with the FULL history
-        # We use the model you confirmed works: 'gemini-2.5-flash'
         response = await client.aio.models.generate_content(
-            model='gemini-2.5-flash',
+            model=GEMINI_MODEL,
             contents=chat_contents
         )
 
@@ -539,6 +540,26 @@ async def chat_endpoint(request: ChatRequest):
         print(f"Chat Error: {e}") # Check your terminal if this fails!
         raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
 
+
+
+@api_router.get("/models")
+def get_models():
+    try:
+        models = []
+        # Iterate through the models and print their names
+        for m in client.models.list():
+            models.append({
+                "name": m.name,
+                "display_name": m.display_name,
+                "description": m.description,
+                "supported_actions": m.supported_actions
+            })
+
+        return {"count": len(models), "models": models}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
 @api_router.get("/test")
 async def test_ai_connection(q: str):
     """
@@ -547,7 +568,7 @@ async def test_ai_connection(q: str):
     """
     try:
         response = await client.aio.models.generate_content(
-            model='gemini-2.5-flash',
+            model=GEMINI_MODEL,
             contents=q
         )
         return {
