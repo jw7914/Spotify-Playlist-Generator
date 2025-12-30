@@ -1,6 +1,7 @@
 import { Navbar } from "@/components/navbar";
 import { Music, Sparkles, MessageCircleHeart, ArrowRight } from "lucide-react";
 import { Card, CardHeader, Chip, CardBody, Button } from "@heroui/react";
+import { Link } from "react-router-dom";
 
 export default function IndexPage() {
   return (
@@ -45,6 +46,8 @@ export default function IndexPage() {
           {/* CTA Buttons */}
           <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto mt-4">
             <Button
+              as={Link}
+              to="/login"
               size="lg"
               className="bg-[#1DB954] text-black font-semibold hover:bg-[#1ed760] transition-all shadow-[0_0_20px_rgba(29,185,84,0.3)]"
               endContent={<ArrowRight size={18} />}
