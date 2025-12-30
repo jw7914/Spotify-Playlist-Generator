@@ -208,69 +208,95 @@ export default function TopArtistsPage() {
         ) : artists.length > 0 ? (
           <>
             {/* --- Hero Section: #1 Artist --- */}
-            <section className="relative w-full overflow-hidden rounded-[32px] bg-gradient-to-r from-violet-900 via-indigo-900 to-black border border-white/10 shadow-2xl mb-16 group">
-              <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-purple-500/20 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
+            {/* --- Hero Section: #1 Artist --- */}
+            <section className="relative w-full overflow-hidden rounded-[40px] bg-gradient-to-br from-violet-900/80 via-zinc-900 to-black border border-white/10 shadow-2xl mb-16 group isolate">
+              {/* Background Ambient Glows */}
+              <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-600/30 rounded-full blur-[120px] pointer-events-none mix-blend-screen -z-10" />
+              <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] bg-indigo-600/20 rounded-full blur-[100px] pointer-events-none mix-blend-screen -z-10" />
 
-              <div className="relative z-10 flex flex-col md:flex-row items-center p-8 md:p-12 gap-8 md:gap-16">
-                <div className="relative shrink-0">
-                  <div className="w-48 h-48 md:w-64 md:h-64 rounded-full p-2 border-2 border-white/10 bg-black/20 backdrop-blur-sm">
-                    <Image
-                      src={featured?.images[0]?.url}
-                      alt={featured?.name}
-                      className="w-full h-full object-cover rounded-full shadow-[0_0_50px_rgba(139,92,246,0.3)] group-hover:scale-105 transition-transform duration-500"
-                      width="100%"
-                      height="100%"
-                    />
-                  </div>
+              <div className="relative z-10 flex flex-col md:flex-row items-center p-8 md:p-16 gap-10 md:gap-20">
+                {/* ---- FIXED ARTIST IMAGE ---- */}
+                <div className="relative shrink-0 flex justify-center">
+                  {/* 1. The Back Glow Layer - sits behind the image */}
+                  <div className="absolute inset-2 bg-purple-500/40 blur-[50px] rounded-[3rem] transform scale-95 group-hover:scale-110 transition-transform duration-700 ease-out -z-10" />
+
+                  {/* 2. The Image Component */}
+                  <Image
+                    src={featured?.images[0]?.url}
+                    alt={featured?.name}
+                    // Made much bigger (w-96 on desktop), changed from circle to large rounded corners.
+                    // Added a heavy, specific purple shadow.
+                    className="w-72 h-72 md:w-[400px] md:h-[400px] object-cover shadow-[0_25px_60px_-12px_rgba(147,51,234,0.6)]"
+                    // Important HeroUI styling overrides:
+                    classNames={{
+                      // Ensure the wrapper matches the image rounding and allows the shadow to spill out
+                      wrapper:
+                        "rounded-[2.5rem] md:rounded-[3.5rem] overflow-visible",
+                      // Smooth hover lift effect on the image itself
+                      img: "rounded-[2.5rem] md:rounded-[3.5rem] group-hover:scale-[1.02] transition-transform duration-500 ease-out",
+                    }}
+                  />
                 </div>
+                {/* --------------------------- */}
 
-                <div className="flex flex-col items-center md:items-start text-center md:text-left space-y-4 max-w-2xl">
+                {/* Artist Info */}
+                <div className="flex flex-col items-center md:items-start text-center md:text-left space-y-6 max-w-2xl flex-grow">
                   <Chip
                     startContent={
-                      <Trophy size={14} className="text-yellow-400" />
+                      <Trophy
+                        size={16}
+                        className="text-yellow-400 fill-yellow-400/20"
+                      />
                     }
                     variant="shadow"
                     classNames={{
-                      base: "bg-black/40 border border-yellow-500/30 backdrop-blur-md pl-2 pr-4 mb-2",
+                      base: "bg-black/60 border border-yellow-500/30 backdrop-blur-xl pl-3 pr-5 py-2 h-auto",
                     }}
                   >
-                    <span className="text-yellow-400 font-bold tracking-wider">
+                    <span className="text-yellow-400 font-extrabold tracking-wider text-sm">
                       #1 MOST PLAYED
                     </span>
                   </Chip>
 
-                  <h2 className="text-4xl md:text-6xl font-black text-white leading-tight">
+                  <h2 className="text-5xl md:text-7xl font-black text-white leading-none tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-purple-200">
                     {featured?.name}
                   </h2>
 
-                  <div className="flex flex-wrap justify-center md:justify-start gap-2">
+                  <div className="flex flex-wrap justify-center md:justify-start gap-3">
                     {featured?.genres.slice(0, 3).map((g) => (
                       <Chip
                         key={g}
-                        size="sm"
+                        size="md"
                         variant="flat"
-                        className="bg-white/10 text-zinc-100 capitalize"
+                        className="bg-white/5 hover:bg-white/10 border border-white/5 text-zinc-200 capitalize backdrop-blur-md transition-colors"
                       >
                         {g}
                       </Chip>
                     ))}
                   </div>
 
-                  <div className="pt-4 flex items-center gap-4">
+                  <div className="pt-6 flex flex-col sm:flex-row items-center gap-6 w-full md:w-auto">
                     <Button
                       as="a"
                       href={featured?.external_url}
                       target="_blank"
-                      className="bg-[#1DB954] text-black font-bold shadow-lg hover:bg-[#1ed760]"
-                      endContent={<ExternalLink size={16} />}
+                      className="bg-[#1DB954] text-black font-bold shadow-[0_10px_30px_-10px_rgba(29,185,84,0.5)] hover:bg-[#1ed760] hover:shadow-[0_15px_40px_-10px_rgba(29,185,84,0.7)] transition-all w-full sm:w-auto"
+                      endContent={<ExternalLink size={18} />}
                       size="lg"
                       radius="full"
                     >
                       Listen on Spotify
                     </Button>
-                    <div className="flex items-center gap-2 text-zinc-300 text-sm px-4">
-                      <TrendingUp size={16} className="text-green-400" />
-                      <span>Popularity: {featured?.popularity}/100</span>
+                    <div className="flex items-center gap-3 text-zinc-300 px-4 py-2 rounded-full bg-white/5 border border-white/5 backdrop-blur-sm">
+                      <TrendingUp size={20} className="text-green-400" />
+                      <div className="flex flex-col text-left leading-none">
+                        <span className="text-sm font-bold text-white">
+                          {featured?.popularity}%
+                        </span>
+                        <span className="text-[10px] uppercase tracking-wider text-zinc-400">
+                          Global Popularity
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -281,7 +307,7 @@ export default function TopArtistsPage() {
             <div className="space-y-6">
               <div className="flex items-center justify-between border-l-4 border-purple-500 pl-4">
                 <h3 className="text-2xl font-bold text-zinc-100">
-                  The Heavy Rotation
+                  Additional Artists
                 </h3>
                 <span className="text-sm text-zinc-400 hidden sm:block">
                   Showing {artists.length} artists based on your{" "}
