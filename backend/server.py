@@ -41,25 +41,30 @@ def login():
     resp = RedirectResponse(url=auth_url)
     resp.set_cookie("spotify_oauth_state", state, max_age=STATE_TTL, httponly=True, samesite="lax")
     return resp
-
 @api_router.get("/auth/callback")
 def callback(request: Request, code: str | None = None, state: str | None = None, error: str | None = None):
+    # 1. Handle "Access Denied" or upstream errors (e.g. user clicked Cancel)
     if error:
-        raise HTTPException(status_code=400, detail={"error": error})
+        return RedirectResponse(url="/")
+
+    # 2. Validate Authorization Code
     if not code:
-        raise HTTPException(status_code=400, detail="Missing 'code' in callback query")
+        return RedirectResponse(url="/")
 
+    # 3. Validate OAuth State (CSRF Protection)
     cookie_state = request.cookies.get("spotify_oauth_state")
-    if not state:
-        raise HTTPException(status_code=400, detail="Missing 'state' in callback query")
-    if not cookie_state or cookie_state != state:
-        raise HTTPException(status_code=400, detail="Invalid or mismatched OAuth state")
+    if not state or not cookie_state or cookie_state != state:
+        return RedirectResponse(url="/")
 
+    # 4. Check Server Configuration
     client_id = os.getenv("SPOTIFY_CLIENT_ID")
     client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
     if not client_id or not client_secret:
-        raise HTTPException(status_code=500, detail="Missing Spotify client credentials on server")
+        # Log this error internally if possible, then redirect user
+        print("Error: Missing Spotify credentials")
+        return RedirectResponse(url="/")
 
+    # 5. Prepare Token Exchange
     token_url = "https://accounts.spotify.com/api/token"
     redirect_uri = os.getenv("REDIRECT_URI") or "http://127.0.0.1:8000/api/auth/callback"
     data = {
@@ -67,31 +72,34 @@ def callback(request: Request, code: str | None = None, state: str | None = None
         "code": code,
         "redirect_uri": redirect_uri,
     }
-    auth_value = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+    
+    auth_str = f"{client_id}:{client_secret}"
+    auth_value = base64.b64encode(auth_str.encode()).decode()
     headers = {
         "Authorization": f"Basic {auth_value}",
         "Content-Type": "application/x-www-form-urlencoded",
     }
 
-    encoded = urllib.parse.urlencode(data).encode()
-    req = urllib.request.Request(token_url, data=encoded, headers=headers, method="POST")
+    # 6. Execute Token Exchange
     try:
+        encoded = urllib.parse.urlencode(data).encode()
+        req = urllib.request.Request(token_url, data=encoded, headers=headers, method="POST")
+        
         with urllib.request.urlopen(req, timeout=10) as resp:
             status = resp.getcode()
             body_text = resp.read().decode("utf-8")
-    except urllib.error.HTTPError as he:
-        body = he.read().decode("utf-8") if hasattr(he, "read") else ""
-        raise HTTPException(status_code=502, detail=f"Token exchange failed: {he.code} {body}")
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Token exchange failed: {e}")
+            
+        if status < 200 or status >= 300:
+            print(f"Token endpoint error {status}: {body_text}")
+            return RedirectResponse(url="/")
 
-    if status < 200 or status >= 300:
-        raise HTTPException(status_code=502, detail=f"Token endpoint returned {status}: {body_text}")
-
-    try:
         token_data = json.loads(body_text)
-    except Exception:
-        raise HTTPException(status_code=502, detail="Failed to parse token response")
+        
+    except Exception as e:
+        print(f"Token exchange exception: {e}")
+        return RedirectResponse(url="/")
+
+    # 7. Success: Set cookies and redirect to profile
     access_token = token_data.get("access_token")
     refresh_token = token_data.get("refresh_token")
     expires_in = token_data.get("expires_in")
@@ -102,7 +110,10 @@ def callback(request: Request, code: str | None = None, state: str | None = None
     if refresh_token:
         resp.set_cookie("refresh_token", refresh_token, httponly=True, samesite="lax")
     resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+    
+    # Clear the state cookie
     resp.set_cookie("spotify_oauth_state", "", max_age=0)
+    
     return resp
 
 @api_router.post("/auth/logout")

@@ -8,7 +8,7 @@ import ProfilePage from "@/pages/profile";
 import NotFoundPage from "@/pages/404";
 import LoginPage from "@/pages/login";
 import LogoutPage from "@/pages/logout";
-import CreateWithAIPage from "@/pages/createWithAI";
+import CreateWithAIPage from "./pages/CreateWithAI";
 import { Navbar } from "@/components/navbar";
 
 function App() {
