@@ -22,7 +22,6 @@ interface Playlist {
   external_url: string;
 }
 
-// ✅ Spotify-style musical note placeholder
 const DefaultPlaylistImage = () => (
   <div className="w-full h-full flex items-center justify-center bg-zinc-900">
     <Music

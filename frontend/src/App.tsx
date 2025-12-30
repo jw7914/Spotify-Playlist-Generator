@@ -7,6 +7,8 @@ import TopArtistsPage from "@/pages/top-artists";
 import ProfilePage from "@/pages/profile";
 import NotFoundPage from "@/pages/404";
 import LoginPage from "@/pages/login";
+import LogoutPage from "@/pages/logout";
+import CreateWithAIPage from "@/pages/CreateWithAI";
 
 function App() {
   return (
@@ -17,6 +19,8 @@ function App() {
         <Route element={<TopArtistsPage />} path="/top-artists" />
         <Route element={<ProfilePage />} path="/profile" />
         <Route element={<LoginPage />} path="/login" />
+        <Route element={<LogoutPage />} path="/logout" />
+        <Route element={<CreateWithAIPage />} path="/create" />
         <Route element={<NotFoundPage />} path="*" />
       </Routes>
     </AuthProvider>

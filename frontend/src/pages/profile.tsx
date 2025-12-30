@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardHeader, CardBody, Divider } from "@heroui/react";
 
-// Icons (Simple SVGs for visual appeal)
+// Icons
 const PlaylistIcon = () => (
   <svg
     className="w-6 h-6 text-white"
@@ -38,7 +38,7 @@ const ArtistIcon = () => (
 );
 
 export default function ProfilePage() {
-  const { user, isLoading, isAuthenticated, logout } = useAuth();
+  const { user, isLoading, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -47,7 +47,7 @@ export default function ProfilePage() {
     }
   }, [isLoading, isAuthenticated, navigate]);
 
-  if (isLoading || !user) return null; // Logic is handled by useAuth redirect
+  if (isLoading || !user) return null;
 
   const avatar = user.images?.[0]?.url || "/placeholder_avatar.svg";
 
@@ -87,14 +87,14 @@ export default function ProfilePage() {
 
         {/* --- Dashboard Grid --- */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Card 1: Playlists */}
+          {/* Card 1: Playlists - Clean Static Look */}
           <Card
             isPressable
             onPress={() => navigate("/playlists")}
-            className="bg-zinc-900 border border-zinc-800 hover:border-[#6A6BB5] transition-all group p-4"
+            className="bg-zinc-900 border border-zinc-800 p-4"
           >
             <CardHeader className="flex gap-3">
-              <div className="p-2 bg-[#6A6BB5]/20 rounded-lg text-[#6A6BB5] group-hover:bg-[#6A6BB5] group-hover:text-white transition-colors">
+              <div className="p-2 bg-[#6A6BB5]/20 rounded-lg text-[#6A6BB5]">
                 <PlaylistIcon />
               </div>
               <div className="flex flex-col text-left">
@@ -111,14 +111,14 @@ export default function ProfilePage() {
             </CardBody>
           </Card>
 
-          {/* Card 2: Top Artists */}
+          {/* Card 2: Top Artists - Clean Static Look */}
           <Card
             isPressable
             onPress={() => navigate("/top-artists")}
-            className="bg-zinc-900 border border-zinc-800 hover:border-pink-500 transition-all group p-4"
+            className="bg-zinc-900 border border-zinc-800 p-4"
           >
             <CardHeader className="flex gap-3">
-              <div className="p-2 bg-pink-500/20 rounded-lg text-pink-500 group-hover:bg-pink-500 group-hover:text-white transition-colors">
+              <div className="p-2 bg-pink-500/20 rounded-lg text-pink-500">
                 <ArtistIcon />
               </div>
               <div className="flex flex-col text-left">
@@ -140,7 +140,7 @@ export default function ProfilePage() {
         <div className="mt-12 pt-8 border-t border-zinc-800">
           <h2 className="text-xl font-bold mb-4">Account</h2>
           <button
-            onClick={logout}
+            onClick={() => navigate("/logout")}
             className="text-red-500 hover:text-red-400 font-semibold text-sm transition"
           >
             Sign out of App
