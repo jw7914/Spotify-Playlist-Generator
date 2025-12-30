@@ -1,4 +1,3 @@
-import { Navbar } from "@/components/navbar";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -89,8 +88,6 @@ export default function TopArtistsPage() {
 
   return (
     <div className="min-h-screen bg-black text-white selection:bg-purple-500/30">
-      <Navbar />
-
       <main className="max-w-7xl mx-auto px-6 py-12">
         {/* Page Title */}
         <div className="flex items-center gap-3 mb-8">

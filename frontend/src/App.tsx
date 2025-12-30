@@ -9,10 +9,12 @@ import NotFoundPage from "@/pages/404";
 import LoginPage from "@/pages/login";
 import LogoutPage from "@/pages/logout";
 import CreateWithAIPage from "@/pages/CreateWithAI";
+import { Navbar } from "@/components/navbar";
 
 function App() {
   return (
     <AuthProvider>
+      <Navbar />
       <Routes>
         <Route element={<IndexPage />} path="/" />
         <Route element={<PlaylistsPage />} path="/playlists" />

@@ -11,7 +11,6 @@ import {
 } from "@heroui/react";
 
 import { ExternalLink, Music, PlayCircle, Library } from "lucide-react";
-import { Navbar } from "@/components/navbar";
 
 interface Playlist {
   id: string;
@@ -102,8 +101,6 @@ export default function PlaylistsPage() {
 
   return (
     <div className="min-h-screen bg-black text-foreground">
-      <Navbar />
-
       <main className="max-w-7xl mx-auto px-6 py-12">
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-end mb-10 gap-4">

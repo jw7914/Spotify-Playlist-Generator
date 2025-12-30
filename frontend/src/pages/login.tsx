@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { Navbar } from "@/components/navbar";
 
 export default function LoginPage() {
   useEffect(() => {
@@ -10,7 +9,6 @@ export default function LoginPage() {
 
   return (
     <>
-      <Navbar />
       <div className="min-h-screen flex items-center justify-center bg-black text-white">
         <div className="text-center animate-pulse">
           <h1 className="text-2xl font-bold mb-2">Logging in...</h1>

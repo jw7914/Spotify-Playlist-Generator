@@ -1,4 +1,3 @@
-import { Navbar } from "@/components/navbar";
 import { Music, Sparkles, MessageCircleHeart, ArrowRight } from "lucide-react";
 import {
   Card,
@@ -22,8 +21,6 @@ export default function IndexPage() {
         <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-green-500/20 rounded-full blur-[120px]" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[120px]" />
       </div>
-
-      <Navbar />
 
       <main className="relative z-10 flex flex-col items-center w-full px-6 pt-10 md:pt-20">
         {/* Hero Section */}

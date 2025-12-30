@@ -35,7 +35,7 @@ export const Navbar = () => {
     []
   );
 
-  const currentTab = navLinks.find((l) => pathname === l.href)?.key || "/";
+  const currentTab = navLinks.find((l) => pathname === l.href)?.key || "";
 
   const handleNav = (href: string) => {
     navigate(href);

@@ -1,4 +1,3 @@
-import { Navbar } from "@/components/navbar";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -53,8 +52,6 @@ export default function ProfilePage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-black text-white">
-      <Navbar />
-
       <div className="max-w-5xl mx-auto px-4 py-8 w-full">
         {/* --- Header Section --- */}
         <div className="flex flex-col md:flex-row items-center md:items-end gap-6 mb-12">

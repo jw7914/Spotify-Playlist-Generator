@@ -1,4 +1,3 @@
-import { Navbar } from "@/components/navbar";
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
@@ -96,8 +95,6 @@ export default function CreateWithAIPage() {
 
   return (
     <div className="flex flex-col h-screen bg-black text-white selection:bg-purple-500/30 overflow-hidden">
-      <Navbar />
-
       {/* Main Chat Area - fills remaining height */}
       <main className="flex-1 relative flex flex-col max-w-5xl w-full mx-auto p-4 md:p-6 overflow-hidden">
         {/* Background Gradients */}
