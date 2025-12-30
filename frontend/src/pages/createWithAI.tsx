@@ -1,10 +1,13 @@
 import { useState, useRef, useEffect } from "react";
-import { Button } from "@heroui/button";
-import { Input } from "@heroui/input";
-import { Card, CardBody } from "@heroui/card";
-import { Avatar } from "@heroui/avatar";
-import { ScrollShadow } from "@heroui/scroll-shadow";
-import { Chip } from "@heroui/chip";
+import {
+  Button,
+  Input,
+  Card,
+  CardBody,
+  Avatar,
+  ScrollShadow,
+  Chip,
+} from "@heroui/react";
 import { Send, Sparkles, Bot, User, Music, Disc3 } from "lucide-react";
 
 // Types for our chat state
