@@ -488,6 +488,156 @@ def get_me(request: Request):
 
     return {"user": user}
 
+@api_router.get("/playlists/{playlist_id}")
+def get_playlist_details(playlist_id: str, request: Request):
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token:
+        return RedirectResponse(url="/api/auth/login")
+
+    try:
+        expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except Exception:
+        expires_at = 0
+
+    # --- Token Refresh Logic (Identical to your other routes) ---
+    if datetime.now().timestamp() > expires_at:
+        if not refresh_token:
+            return RedirectResponse(url="/api/auth/login")
+
+        token_url = "https://accounts.spotify.com/api/token"
+        client_id = SPOTIFY_CLIENT_ID
+        client_secret = SPOTIFY_CLIENT_SECRET
+        if not client_id or not client_secret:
+            raise HTTPException(status_code=500, detail="Missing Spotify client credentials on server")
+
+        data = {
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+        }
+        auth_value = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+        headers = {
+            "Authorization": f"Basic {auth_value}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+
+        encoded = urllib.parse.urlencode(data).encode()
+        req = urllib.request.Request(token_url, data=encoded, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                status = resp.getcode()
+                body_text = resp.read().decode("utf-8")
+        except urllib.error.HTTPError as he:
+            body = he.read().decode("utf-8") if hasattr(he, "read") else ""
+            return RedirectResponse(url="/api/auth/login")
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Token refresh failed: {e}")
+
+        if status < 200 or status >= 300:
+            return RedirectResponse(url="/api/auth/login")
+
+        try:
+            token_data = json.loads(body_text)
+        except Exception:
+            raise HTTPException(status_code=502, detail="Failed to parse token refresh response")
+
+        access_token = token_data.get("access_token")
+        expires_in = token_data.get("expires_in")
+        expires_at = datetime.now().timestamp() + (expires_in or 0)
+
+        # Retry the request with new token
+        resp = RedirectResponse(url=f"/api/playlists/{playlist_id}")
+        resp.set_cookie("access_token", access_token or "", httponly=True, samesite="lax")
+        resp.set_cookie("refresh_token", refresh_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+
+    # --- Main API Request ---
+    headers = {
+        "Authorization": f"Bearer {access_token}"
+    }
+
+    url = f"{API_BASE_URL}/playlists/{playlist_id}"
+    
+    try:
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            status = resp.getcode()
+            body_text = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as he:
+        body = he.read().decode("utf-8") if hasattr(he, "read") else ""
+        if he.code == 401:
+            return RedirectResponse(url="/api/auth/login")
+        raise HTTPException(status_code=502, detail=f"Spotify API request failed: {he.code} {body}")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Spotify API request failed: {e}")
+
+    if status < 200 or status >= 300:
+        raise HTTPException(status_code=502, detail=f"Spotify API returned {status}: {body_text}")
+
+    try:
+        data = json.loads(body_text)
+    except Exception:
+        raise HTTPException(status_code=502, detail="Failed to parse Spotify response")
+
+    # --- Response Formatting ---
+    # Map the raw Spotify data to the structure expected by the React component
+    
+    tracks_data = data.get("tracks", {})
+    items_raw = tracks_data.get("items", [])
+    formatted_tracks = []
+
+    for item in items_raw:
+        track_obj = item.get("track")
+        # Skip if track object is missing (can happen in Spotify playlists)
+        if not track_obj:
+            continue
+            
+        formatted_tracks.append({
+            "added_at": item.get("added_at"),
+            "track": {
+                "id": track_obj.get("id"),
+                "name": track_obj.get("name"),
+                "duration_ms": track_obj.get("duration_ms"),
+                "uri": track_obj.get("uri"),
+                "external_urls": track_obj.get("external_urls", {}),
+                "album": {
+                    "id": track_obj.get("album", {}).get("id"),
+                    "name": track_obj.get("album", {}).get("name"),
+                    "images": track_obj.get("album", {}).get("images", []),
+                },
+                "artists": [
+                    {
+                        "id": artist.get("id"),
+                        "name": artist.get("name"),
+                        "external_urls": artist.get("external_urls", {})
+                    } for artist in track_obj.get("artists", [])
+                ]
+            }
+        })
+
+    playlist_details = {
+        "id": data.get("id"),
+        "name": data.get("name"),
+        "description": data.get("description"),
+        "images": data.get("images", []),
+        "owner": {
+            "display_name": data.get("owner", {}).get("display_name")
+        },
+        "followers": {
+            "total": data.get("followers", {}).get("total")
+        },
+        "external_urls": (data.get("external_urls") or {}).get("spotify"),
+        "tracks": {
+            "total": tracks_data.get("total"),
+            "items": formatted_tracks
+        }
+    }
+
+    return playlist_details
+
 @api_router.get("/routes")
 def list_routes():
     return [r.path for r in app.router.routes]

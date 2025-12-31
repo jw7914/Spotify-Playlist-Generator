@@ -3,6 +3,7 @@ import { AuthProvider } from "./hooks/useAuth";
 
 import IndexPage from "@/pages/index";
 import PlaylistsPage from "@/pages/playlists";
+import PlaylistDetailsPage from "@/pages/tracks";
 import TopArtistsPage from "@/pages/top-artists";
 import ProfilePage from "@/pages/profile";
 import NotFoundPage from "@/pages/404";
@@ -18,6 +19,7 @@ function App() {
       <Routes>
         <Route element={<IndexPage />} path="/" />
         <Route element={<PlaylistsPage />} path="/playlists" />
+        <Route element={<PlaylistDetailsPage />} path="/playlists/:id" />
         <Route element={<TopArtistsPage />} path="/top-artists" />
         <Route element={<ProfilePage />} path="/profile" />
         <Route element={<LoginPage />} path="/login" />

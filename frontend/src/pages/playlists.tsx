@@ -10,7 +10,7 @@ import {
   Chip,
 } from "@heroui/react";
 
-import { ExternalLink, Music, PlayCircle, Library } from "lucide-react";
+import { ExternalLink, Music, Library } from "lucide-react";
 
 interface Playlist {
   id: string;
@@ -138,7 +138,8 @@ export default function PlaylistsPage() {
                 isPressable
                 className="group w-full bg-zinc-900/40 border border-white/5 hover:bg-zinc-800 transition-all duration-300"
                 shadow="sm"
-                onPress={() => window.open(playlist.external_url, "_blank")}
+                // UPDATED: Navigates to internal route instead of external URL
+                onPress={() => navigate(`/playlists/${playlist.id}`)}
               >
                 <CardBody className="p-4 pb-2 overflow-visible relative">
                   <div className="relative w-full aspect-square rounded-lg overflow-hidden shadow-lg mb-4">
@@ -160,7 +161,7 @@ export default function PlaylistsPage() {
                     )}
 
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center z-20 backdrop-blur-[1px]">
-                      <PlayCircle
+                      <ExternalLink
                         size={48}
                         className="text-white drop-shadow-lg scale-90 group-hover:scale-100 transition-transform duration-300"
                       />
@@ -188,10 +189,6 @@ export default function PlaylistsPage() {
                   >
                     {playlist.tracks_total} Tracks
                   </Chip>
-                  <ExternalLink
-                    size={14}
-                    className="opacity-0 group-hover:opacity-50 transition-opacity"
-                  />
                 </CardFooter>
               </Card>
             ))
