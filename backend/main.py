@@ -1,7 +1,7 @@
 from pathlib import Path
 from pydantic import BaseModel
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response
-from fastapi.responses import RedirectResponse, FileResponse
+from fastapi.responses import RedirectResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
@@ -51,7 +51,7 @@ class ChatRequest(BaseModel):
 # --- API Routes ---
 @api_router.get("/auth/login")
 def login():
-    scope = "user-read-private user-read-email user-top-read"
+    scope = "user-read-private user-read-email user-top-read user-read-recently-played"
     state = secrets.token_urlsafe(16)
     params = {
         "client_id": SPOTIFY_CLIENT_ID,
@@ -637,6 +637,91 @@ def get_playlist_details(playlist_id: str, request: Request):
     }
 
     return playlist_details
+
+@api_router.get("/recently-played")
+def get_recently_played(request: Request, limit: int = 10):
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token:
+        return RedirectResponse(url="/api/auth/login")
+
+    try:
+        expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except Exception:
+        expires_at = 0
+
+    # --- Token Refresh Logic ---
+    if datetime.now().timestamp() > expires_at:
+        if not refresh_token:
+            return RedirectResponse(url="/api/auth/login")
+
+        token_url = "https://accounts.spotify.com/api/token"
+        client_id = SPOTIFY_CLIENT_ID
+        client_secret = SPOTIFY_CLIENT_SECRET
+        
+        data = {"grant_type": "refresh_token", "refresh_token": refresh_token}
+        auth_value = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+        headers = {
+            "Authorization": f"Basic {auth_value}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+
+        encoded = urllib.parse.urlencode(data).encode()
+        req = urllib.request.Request(token_url, data=encoded, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                body_text = resp.read().decode("utf-8")
+                token_data = json.loads(body_text)
+                access_token = token_data.get("access_token")
+                expires_in = token_data.get("expires_in")
+                expires_at = datetime.now().timestamp() + (expires_in or 0)
+        except Exception:
+             return RedirectResponse(url="/api/auth/login")
+             
+    # --- Recent Tracks Request ---
+    headers = {"Authorization": f"Bearer {access_token}"}
+    
+    # Using 'before' cursor is often better for consistency, but standard limit works for latest
+    params = {"limit": limit}
+    url = f"{API_BASE_URL}/me/player/recently-played?{urllib.parse.urlencode(params)}"
+    
+    try:
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body_text = resp.read().decode("utf-8")
+            data = json.loads(body_text)
+    except urllib.error.HTTPError as he:
+        # If user is missing the scope 'user-read-recently-played', this will 403
+        if he.code == 403:
+            raise HTTPException(status_code=403, detail="Missing permissions. Re-login required.")
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+
+    # Format response
+    formatted_items = []
+    for item in data.get("items", []):
+        track = item.get("track", {})
+        formatted_items.append({
+            "played_at": item.get("played_at"),
+            "track": {
+                "id": track.get("id"),
+                "name": track.get("name"),
+                "duration_ms": track.get("duration_ms"),
+                "artists": [{"name": a["name"]} for a in track.get("artists", [])],
+                "image": track.get("album", {}).get("images", [{}])[0].get("url"),
+                "external_url": track.get("external_urls", {}).get("spotify")
+            }
+        })
+
+    # Save new cookies if we refreshed
+    if datetime.now().timestamp() > float(expires_at_raw or 0):
+        resp = JSONResponse({"items": formatted_items})
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+        
+    return {"items": formatted_items}
 
 @api_router.get("/routes")
 def list_routes():
