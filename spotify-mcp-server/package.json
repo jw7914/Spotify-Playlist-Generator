@@ -13,7 +13,7 @@
     "lint": "biome check --diagnostic-level=warn --error-on-warnings",
     "lint:fix": "biome check --write --unsafe --organize-imports-enabled=true",
     "typecheck": "tsc --noEmit",
-    "http": "node http-server.js"
+    "mcp": "node http-server.js"
   },
   "files": ["build"],
   "keywords": [],

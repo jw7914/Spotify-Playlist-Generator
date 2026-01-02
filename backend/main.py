@@ -727,12 +727,77 @@ def get_recently_played(request: Request, limit: int = 10):
 def list_routes():
     return [r.path for r in app.router.routes]
 
+
+@api_router.get("/agent-session")
+async def create_agent_session(request: Request):
+    # access_token = request.cookies.get("access_token")
+    # refresh_token = request.cookies.get("refresh_token")    
+    
+
+
+    # Post to the MCP HTTP wrapper
+    agent_url = "http://127.0.0.1:8080/apps//agent/users/test_user/sessions/test_session"
+    try:
+        req = urllib.request.Request(
+            agent_url,
+            data=b"",  # empty body, required to force POS9T
+            headers={
+                "Content-Type": "application/json"
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            status = resp.getcode()
+            body_text = resp.read().decode("utf-8")
+        
+        if status == 409:
+            req = urllib.request.Request(
+                agent_url,
+                data=b"",  # empty body, required to force POS9T
+                headers={
+                    "Content-Type": "application/json"
+                },
+                method="DELETE",
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                status = resp.getcode()
+                resp_text = resp.read().decode("utf-8")
+                
+            if status < 200 or status >= 300:
+                raise HTTPException(status_code=502, detail=f"MCP server returned {status}: {resp_text}")
+            
+            req = urllib.request.Request(
+                agent_url,
+                data=b"",  # empty body, required to force POS9T
+                headers={
+                    "Content-Type": "application/json"
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                status = resp.getcode()
+                resp_text = resp.read().decode("utf-8")
+            
+        if status < 200 or status >= 300 and status != 409:
+            raise HTTPException(status_code=502, detail=f"MCP server returned {status}: {resp_text}")
+
+        try:
+            result = json.loads(resp_text)
+        except Exception:
+            result = {"raw": resp_text}
+
+        return JSONResponse(result)
+    except urllib.error.HTTPError as he:
+        body_text = he.read().decode("utf-8") if hasattr(he, "read") else str(he)
+        raise HTTPException(status_code=502, detail=f"MCP server error: {body_text}")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to contact MCP server: {e}")
+    
 @api_router.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     try:
         # 1. Prepare the conversation history
         # We start with an empty list for the SDK contents
-        chat_contents = []
 
         # 2. Add System Instruction (Optional but recommended)
         # This gives the AI its "persona" as a music assistant.
@@ -741,33 +806,61 @@ async def chat_endpoint(request: ChatRequest):
         # For simplicity here, we stick to the message history.
         
         # 3. Convert Frontend History to SDK 'Content' objects
-        for item in request.history:
-            chat_contents.append(types.Content(
-                role=item.role, # Must be "user" or "model"
-                parts=[types.Part.from_text(text=p) for p in item.parts]
-            ))
-
+        # for item in request.history:
+        #     chat_contents.append(types.Content(
+        #         role=item.role, # Must be "user" or "model"
+        #         parts=[types.Part.from_text(text=p) for p in item.parts]
+        #     ))
         # 4. Add the CURRENT user message to the end
-        chat_contents.append(types.Content(
-            role="user",
-            parts=[types.Part.from_text(text=request.message)]
-        ))
-
+        chat_contents = [{"text": request.message}]
+        
         # 5. Call the API with the FULL history
-        response = await client.aio.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=chat_contents
+        # response = await client.aio.models.generate_content(
+        #     model=GEMINI_MODEL,
+        #     contents=chat_contents
+        # )
+        url = "http://127.0.0.1:8080/run"
+
+        payload = {
+            "appName": "agent",
+            "userId": "test_user",
+            "sessionId": "test_session",
+            "newMessage": {
+                "role": "user",
+                "parts": chat_contents
+            }
+        }
+        req_body = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=req_body,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(req_body)),
+            },
+            method="POST",
         )
+
+        with urllib.request.urlopen(req) as response:
+            status = response.getcode()
+            resp_text = response.read().decode("utf-8")
+            data = json.loads(resp_text)
+            last_message = data[-1]
+
+            user_text = last_message['content']['parts'][0]['text']
+
+        if status < 200 or status >= 300:
+            raise HTTPException(status_code=502, detail=f"Error {status}: {resp_text}")
 
         # 6. Return the text AND the updated history
         # The frontend needs the new history to maintain state
         updated_history = request.history + [
             ChatHistoryItem(role="user", parts=[request.message]),
-            ChatHistoryItem(role="model", parts=[response.text])
+            ChatHistoryItem(role="model", parts=[user_text])
         ]
 
         return {
-            "text": response.text,
+            "text": user_text,
             "history": updated_history
         }
 

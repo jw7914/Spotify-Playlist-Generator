@@ -67,7 +67,7 @@ def create_playlist_from_queries(name: str, queries: list[str], description: str
 
 
 root_agent = Agent(
-    model='gemini-2.5-flash',
+    model='gemma-3-12b-it',
     name='root_agent',
     description='A helpful assistant for Spotify playlist creation.',
     instruction='You are a helpful assistant that helps the user creates Spotify playlists.',

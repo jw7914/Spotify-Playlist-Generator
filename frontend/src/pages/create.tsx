@@ -30,7 +30,7 @@ export default function CreateWithAIPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
+  
   // Initial Welcome Message
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -45,7 +45,22 @@ export default function CreateWithAIPage() {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+  useEffect(() => {
+    const create_session = async () => {
+      const response = await fetch("/api/agent-session", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        }
+      });
 
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.statusText}`);
+      }
+    };
+
+    create_session();
+  }, []);
   useEffect(() => {
     scrollToBottom();
   }, [messages, isLoading]);
