@@ -94,7 +94,7 @@ export default function IndexPage() {
               </div>
 
               {/* Chat Simulation Area */}
-              <div className="p-8 md:p-12 flex flex-col gap-6 h-[400px] md:h-[500px] relative">
+              <div className="p-8 md:p-12 flex flex-col gap-6 h-[575px] relative">
                 {/* AI Message */}
                 <div className="flex gap-4 max-w-lg">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0">

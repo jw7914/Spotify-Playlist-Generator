@@ -15,6 +15,7 @@ import {
   DropdownMenu,
   DropdownItem,
   Avatar,
+  Image,
 } from "@heroui/react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useMemo } from "react";
@@ -53,17 +54,35 @@ export const Navbar = () => {
       onMenuOpenChange={setIsMenuOpen}
       maxWidth="xl"
     >
+      {/* --- Left: Logo & Brand --- */}
       <NavbarContent>
         <NavbarBrand
-          className="gap-3 cursor-pointer"
+          className="gap-3 cursor-pointer group"
           onClick={() => handleNav("/")}
         >
-          <p className="font-bold text-white text-lg tracking-tight">
+          {/* Responsive Fix: 
+            1. Use 'h-8 sm:h-10' to control height responsively.
+            2. 'w-auto' maintains aspect ratio.
+            3. 'flex-shrink-0' ensures it doesn't squash.
+          */}
+          <div className="relative flex items-center justify-center flex-shrink-0">
+            <Image
+              alt="Logo"
+              src="web_logo.svg"
+              radius="none"
+              // Remove wrapper styling that conflicts with flex layouts
+              removeWrapper
+              className="h-8 w-auto sm:h-10 object-contain transition-transform duration-500 group-hover:scale-110"
+            />
+          </div>
+
+          <p className="font-bold text-white text-base sm:text-lg tracking-tight truncate">
             Spotify PlaylistGen
           </p>
         </NavbarBrand>
       </NavbarContent>
 
+      {/* --- Center: Desktop Tabs --- */}
       <NavbarContent className="hidden sm:flex gap-4" justify="center">
         <Tabs
           aria-label="Navigation"
@@ -84,6 +103,7 @@ export const Navbar = () => {
         </Tabs>
       </NavbarContent>
 
+      {/* --- Right: User Actions --- */}
       <NavbarContent justify="end">
         {isLoading ? (
           <NavbarItem>
@@ -115,7 +135,7 @@ export const Navbar = () => {
             >
               <DropdownItem
                 key="profile_info"
-                className="h-14 gap-2 text-white opacity-100"
+                className="h-14 gap-2 text-white opacity-100 cursor-default"
                 textValue="Signed in as"
               >
                 <p className="font-semibold">Signed in as</p>
@@ -124,7 +144,7 @@ export const Navbar = () => {
               <DropdownItem
                 key="settings"
                 onPress={() => navigate("/profile")}
-                className="text-white"
+                className="text-white hover:bg-zinc-800"
               >
                 My Profile
               </DropdownItem>
@@ -141,7 +161,7 @@ export const Navbar = () => {
         ) : (
           <NavbarItem>
             <Button
-              onClick={() => handleNav("/login")}
+              onPress={() => handleNav("/login")}
               className="bg-[#6A6BB5] text-white font-semibold"
               radius="full"
               variant="flat"
@@ -157,32 +177,46 @@ export const Navbar = () => {
         />
       </NavbarContent>
 
-      {/* --- Fixed Mobile Menu --- */}
-      <NavbarMenu className="bg-black pt-6">
-        {navLinks.map((item, index) => (
-          <NavbarMenuItem key={`${item.key}-${index}`}>
-            <button
-              className="w-full text-left text-lg text-white font-medium hover:text-[#6A6BB5] transition-colors py-2"
-              onClick={() => handleNav(item.href)}
-            >
-              {item.title}
-            </button>
-          </NavbarMenuItem>
-        ))}
+      {/* --- Mobile Menu --- */}
+      <NavbarMenu className="bg-black/95 pt-8 px-6">
+        <div className="flex flex-col gap-6">
+          {navLinks.map((item, index) => (
+            <NavbarMenuItem key={`${item.key}-${index}`}>
+              <button
+                className={`w-full text-left text-2xl font-semibold transition-colors py-2
+                  ${pathname === item.href ? "text-[#6A6BB5]" : "text-white hover:text-zinc-300"}
+                `}
+                onClick={() => handleNav(item.href)}
+              >
+                {item.title}
+              </button>
+            </NavbarMenuItem>
+          ))}
+        </div>
 
-        <div className="border-t border-zinc-800 mt-6 pt-6 flex flex-col gap-4">
+        <div className="border-t border-zinc-800 mt-8 pt-6 flex flex-col gap-4">
           {isAuthenticated ? (
             <>
-              <div className="px-2 flex items-center gap-3 mb-2">
-                <Avatar src={avatarUrl} size="sm" />
-                <span className="text-zinc-400">{user?.display_name}</span>
+              <div className="flex items-center gap-4 mb-4 p-2 rounded-xl bg-zinc-900/50">
+                <Avatar
+                  src={avatarUrl}
+                  size="md"
+                  isBordered
+                  color="secondary"
+                />
+                <div className="flex flex-col">
+                  <span className="text-white font-semibold">
+                    {user?.display_name}
+                  </span>
+                  <span className="text-zinc-500 text-xs">{user?.email}</span>
+                </div>
               </div>
               <NavbarMenuItem>
                 <button
                   onClick={() => handleNav("/profile")}
-                  className="w-full text-left text-lg text-white hover:text-[#6A6BB5]"
+                  className="w-full text-left text-lg text-zinc-300 hover:text-white"
                 >
-                  Profile
+                  Profile Settings
                 </button>
               </NavbarMenuItem>
               <NavbarMenuItem>
@@ -191,7 +225,7 @@ export const Navbar = () => {
                     logout();
                     setIsMenuOpen(false);
                   }}
-                  className="w-full text-left text-lg text-red-500 hover:text-red-400"
+                  className="w-full text-left text-lg text-red-500 hover:text-red-400 font-medium"
                 >
                   Log Out
                 </button>
@@ -201,9 +235,8 @@ export const Navbar = () => {
             <NavbarMenuItem>
               <Button
                 fullWidth
-                onClick={() => handleNav("/login")}
-                className="bg-[#6A6BB5] text-white font-semibold"
-                size="lg"
+                onPress={() => handleNav("/login")}
+                className="bg-[#6A6BB5] text-white font-bold text-lg h-12"
               >
                 Login
               </Button>

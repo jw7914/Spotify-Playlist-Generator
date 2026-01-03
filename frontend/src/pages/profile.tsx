@@ -8,9 +8,10 @@ import {
   Divider,
   Image,
   Skeleton,
+  Button,
 } from "@heroui/react";
 
-// Icons
+// --- Icons ---
 const PlaylistIcon = () => (
   <svg
     className="w-6 h-6 text-white"
@@ -59,6 +60,22 @@ const HistoryIcon = () => (
   </svg>
 );
 
+const GenreIcon = () => (
+  <svg
+    className="w-6 h-6 text-white"
+    fill="none"
+    viewBox="0 0 24 24"
+    stroke="currentColor"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+    />
+  </svg>
+);
+
 // --- Types ---
 interface RecentTrack {
   played_at: string;
@@ -71,7 +88,12 @@ interface RecentTrack {
   };
 }
 
-// --- Helper: Relative Time ---
+interface GenreStat {
+  name: string;
+  count: number;
+  percent: number;
+}
+
 const getRelativeTime = (dateString: string) => {
   const date = new Date(dateString);
   const now = new Date();
@@ -87,8 +109,15 @@ const getRelativeTime = (dateString: string) => {
 export default function ProfilePage() {
   const { user, isLoading, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
   const [recentTracks, setRecentTracks] = useState<RecentTrack[]>([]);
   const [recentLoading, setRecentLoading] = useState(true);
+
+  // --- Genres State ---
+  const [topGenres, setTopGenres] = useState<GenreStat[]>([]);
+  const [genresLoading, setGenresLoading] = useState(true);
+  // Time ranges: 'short_term' (4 weeks), 'medium_term' (6 months), 'long_term' (All Time)
+  const [genreTimeRange, setGenreTimeRange] = useState("short_term");
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -96,11 +125,10 @@ export default function ProfilePage() {
     }
   }, [isLoading, isAuthenticated, navigate]);
 
-  // Fetch recently played
+  // 1. Fetch Recently Played (Once)
   useEffect(() => {
     if (isAuthenticated) {
       setRecentLoading(true);
-      // Fetching 10 items for the horizontal scroll
       fetch("/api/recently-played?limit=10")
         .then((res) => res.json())
         .then((data) => {
@@ -111,14 +139,68 @@ export default function ProfilePage() {
     }
   }, [isAuthenticated]);
 
-  if (isLoading || !user) return null;
+  // 2. Fetch Genres (Depend on genreTimeRange)
+  useEffect(() => {
+    if (isAuthenticated) {
+      setGenresLoading(true);
+      // We fetch artists to calculate genres
+      fetch(`/api/top-artists?limit=50&time_range=${genreTimeRange}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.artists) {
+            calculateGenres(data.artists);
+          }
+        })
+        .catch((err) => console.error("Failed to load artists for genres", err))
+        .finally(() => setGenresLoading(false));
+    }
+  }, [isAuthenticated, genreTimeRange]);
 
+  const calculateGenres = (artists: any[]) => {
+    const genreCounts: { [key: string]: number } = {};
+    let totalTags = 0;
+
+    artists.forEach((artist) => {
+      artist.genres.forEach((genre: string) => {
+        genreCounts[genre] = (genreCounts[genre] || 0) + 1;
+        totalTags++;
+      });
+    });
+
+    // Sort and take top 10
+    const sortedGenres = Object.entries(genreCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([name, count]) => ({
+        name,
+        count,
+        percent: 0, // placeholder
+      }));
+
+    // Normalize: Top genre is 100% width
+    const maxCount = sortedGenres[0]?.count || 1;
+    const visualizedGenres = sortedGenres.map((g) => ({
+      ...g,
+      percent: (g.count / maxCount) * 100,
+    }));
+
+    setTopGenres(visualizedGenres);
+  };
+
+  if (isLoading || !user) return null;
   const avatar = user.images?.[0]?.url || "/placeholder_avatar.svg";
+
+  // Helper to format title based on range
+  const getRangeTitle = () => {
+    if (genreTimeRange === "short_term") return "Last 4 Weeks";
+    if (genreTimeRange === "medium_term") return "Last 6 Months";
+    return "All Time";
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-black text-white">
-      <div className="max-w-5xl mx-auto px-6 py-12 w-full">
-        {/* --- Header Section --- */}
+      <div className="max-w-6xl mx-auto px-6 py-12 w-full">
+        {/* --- Header --- */}
         <div className="flex flex-col md:flex-row items-center md:items-end gap-8 mb-12">
           <img
             src={avatar}
@@ -147,9 +229,8 @@ export default function ProfilePage() {
 
         <Divider className="my-10 bg-zinc-800" />
 
-        {/* --- Main Dashboard Grid (Playlists & Artists) --- */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          {/* Card 1: Playlists */}
+        {/* --- Library Grid (2 Cols) --- */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
           <Card
             isPressable
             onPress={() => navigate("/playlists")}
@@ -174,7 +255,6 @@ export default function ProfilePage() {
             </CardBody>
           </Card>
 
-          {/* Card 2: Top Artists */}
           <Card
             isPressable
             onPress={() => navigate("/top-artists")}
@@ -200,7 +280,99 @@ export default function ProfilePage() {
           </Card>
         </div>
 
-        {/* --- Recently Played (Horizontal Full Width) --- */}
+        {/* --- Top Genres Section (Matches Screenshot) --- */}
+        <div className="mb-16">
+          <div className="flex flex-col md:flex-row justify-between items-end mb-6 gap-4">
+            <h2 className="text-3xl font-bold flex items-center gap-3">
+              <GenreIcon /> Top Genres
+              <span className="text-zinc-500 font-normal text-xl">
+                ({getRangeTitle()})
+              </span>
+            </h2>
+
+            {/* Tabs */}
+            <div className="flex bg-zinc-900/50 p-1 rounded-lg border border-zinc-800">
+              <button
+                onClick={() => setGenreTimeRange("short_term")}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  genreTimeRange === "short_term"
+                    ? "bg-zinc-700 text-white shadow-md"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                Last 4 Weeks
+              </button>
+              <button
+                onClick={() => setGenreTimeRange("medium_term")}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  genreTimeRange === "medium_term"
+                    ? "bg-zinc-700 text-white shadow-md"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                Last 6 Months
+              </button>
+              <button
+                onClick={() => setGenreTimeRange("long_term")}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  genreTimeRange === "long_term"
+                    ? "bg-zinc-700 text-white shadow-md"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                All Time
+              </button>
+            </div>
+          </div>
+
+          <div className="w-full bg-zinc-900/30 border border-zinc-800 rounded-2xl p-8">
+            {genresLoading ? (
+              <div className="space-y-6">
+                {[1, 2, 3].map((i) => (
+                  <div key={i}>
+                    <Skeleton className="h-4 w-32 mb-2 rounded bg-zinc-800" />
+                    <Skeleton className="h-10 w-full rounded bg-zinc-800" />
+                  </div>
+                ))}
+              </div>
+            ) : topGenres.length === 0 ? (
+              <div className="text-center py-10 text-zinc-500">
+                Not enough data to determine genres for this period.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-6">
+                {topGenres.map((genre, index) => (
+                  <div key={genre.name} className="w-full">
+                    <div className="flex items-baseline mb-2 ml-1">
+                      <span className="text-zinc-400 mr-2 font-mono text-sm">
+                        {index + 1}.
+                      </span>
+                      <span className="text-lg font-medium text-white capitalize">
+                        {genre.name}
+                      </span>
+                    </div>
+                    {/* The Bar */}
+                    <div className="h-10 w-full bg-zinc-800/50 rounded-md overflow-hidden relative">
+                      <div
+                        className="h-full bg-blue-400/90 hover:bg-blue-400 transition-all duration-1000 ease-out flex items-center justify-end px-3"
+                        style={{ width: `${Math.max(genre.percent, 2)}%` }} // Ensure at least 2% width so it's visible
+                      >
+                        {/* Optional: Show percentage inside bar if wide enough */}
+                        {genre.percent > 10 && (
+                          <span className="text-blue-900 font-bold text-xs">
+                            {/* You could show count here if desired */}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* --- Recently Played --- */}
         <div className="mb-12">
           <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
             <HistoryIcon /> Recently Played
@@ -256,7 +428,7 @@ export default function ProfilePage() {
           </Card>
         </div>
 
-        {/* --- Account / Footer --- */}
+        {/* --- Footer --- */}
         <div className="border-t border-zinc-800 pt-8 flex justify-between items-center">
           <div>
             <h3 className="text-lg font-bold text-white">Account Controls</h3>
