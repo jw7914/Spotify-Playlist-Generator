@@ -8,8 +8,8 @@ import {
   Divider,
   Image,
   Skeleton,
-  Button,
 } from "@heroui/react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
 // --- Icons ---
 const PlaylistIcon = () => (
@@ -76,6 +76,18 @@ const GenreIcon = () => (
   </svg>
 );
 
+// --- Constants ---
+// Vibrant colors for the chart slices
+const CHART_COLORS = [
+  "#60A5FA", // Blue 400
+  "#F472B6", // Pink 400
+  "#34D399", // Emerald 400
+  "#A78BFA", // Violet 400
+  "#FBBF24", // Amber 400
+  "#F87171", // Red 400
+  "#2DD4BF", // Teal 400
+];
+
 // --- Types ---
 interface RecentTrack {
   played_at: string;
@@ -116,7 +128,6 @@ export default function ProfilePage() {
   // --- Genres State ---
   const [topGenres, setTopGenres] = useState<GenreStat[]>([]);
   const [genresLoading, setGenresLoading] = useState(true);
-  // Time ranges: 'short_term' (4 weeks), 'medium_term' (6 months), 'long_term' (All Time)
   const [genreTimeRange, setGenreTimeRange] = useState("short_term");
 
   useEffect(() => {
@@ -125,7 +136,7 @@ export default function ProfilePage() {
     }
   }, [isLoading, isAuthenticated, navigate]);
 
-  // 1. Fetch Recently Played (Once)
+  // 1. Fetch Recently Played
   useEffect(() => {
     if (isAuthenticated) {
       setRecentLoading(true);
@@ -139,11 +150,10 @@ export default function ProfilePage() {
     }
   }, [isAuthenticated]);
 
-  // 2. Fetch Genres (Depend on genreTimeRange)
+  // 2. Fetch Genres
   useEffect(() => {
     if (isAuthenticated) {
       setGenresLoading(true);
-      // We fetch artists to calculate genres
       fetch(`/api/top-artists?limit=50&time_range=${genreTimeRange}`)
         .then((res) => res.json())
         .then((data) => {
@@ -167,34 +177,43 @@ export default function ProfilePage() {
       });
     });
 
-    // Sort and take top 10
+    // Limit to top 6 for the Pie Chart to stay clean
     const sortedGenres = Object.entries(genreCounts)
       .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
+      .slice(0, 6)
       .map(([name, count]) => ({
         name,
         count,
-        percent: 0, // placeholder
+        percent: totalTags > 0 ? (count / totalTags) * 100 : 0,
       }));
 
-    // Normalize: Top genre is 100% width
-    const maxCount = sortedGenres[0]?.count || 1;
-    const visualizedGenres = sortedGenres.map((g) => ({
-      ...g,
-      percent: (g.count / maxCount) * 100,
-    }));
-
-    setTopGenres(visualizedGenres);
+    setTopGenres(sortedGenres);
   };
 
   if (isLoading || !user) return null;
   const avatar = user.images?.[0]?.url || "/placeholder_avatar.svg";
 
-  // Helper to format title based on range
   const getRangeTitle = () => {
     if (genreTimeRange === "short_term") return "Last 4 Weeks";
     if (genreTimeRange === "medium_term") return "Last 6 Months";
     return "All Time";
+  };
+
+  // Custom Tooltip for the Pie Chart
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-zinc-900 border border-zinc-700 p-3 rounded-lg shadow-xl">
+          <p className="font-bold capitalize text-white mb-1">
+            {payload[0].name}
+          </p>
+          <p className="text-zinc-400 text-xs">
+            Frequency: <span className="text-white">{payload[0].value}</span>
+          </p>
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
@@ -280,7 +299,7 @@ export default function ProfilePage() {
           </Card>
         </div>
 
-        {/* --- Top Genres Section (Matches Screenshot) --- */}
+        {/* --- Top Genres Pie Chart Section --- */}
         <div className="mb-16">
           <div className="flex flex-col md:flex-row justify-between items-end mb-6 gap-4">
             <h2 className="text-3xl font-bold flex items-center gap-3">
@@ -327,46 +346,67 @@ export default function ProfilePage() {
 
           <div className="w-full bg-zinc-900/30 border border-zinc-800 rounded-2xl p-8">
             {genresLoading ? (
-              <div className="space-y-6">
-                {[1, 2, 3].map((i) => (
-                  <div key={i}>
-                    <Skeleton className="h-4 w-32 mb-2 rounded bg-zinc-800" />
-                    <Skeleton className="h-10 w-full rounded bg-zinc-800" />
-                  </div>
-                ))}
+              <div className="flex justify-center items-center h-[300px]">
+                <Skeleton className="rounded-full w-64 h-64 bg-zinc-800" />
               </div>
             ) : topGenres.length === 0 ? (
               <div className="text-center py-10 text-zinc-500">
                 Not enough data to determine genres for this period.
               </div>
             ) : (
-              <div className="flex flex-col gap-6">
-                {topGenres.map((genre, index) => (
-                  <div key={genre.name} className="w-full">
-                    <div className="flex items-baseline mb-2 ml-1">
-                      <span className="text-zinc-400 mr-2 font-mono text-sm">
-                        {index + 1}.
-                      </span>
-                      <span className="text-lg font-medium text-white capitalize">
-                        {genre.name}
-                      </span>
-                    </div>
-                    {/* The Bar */}
-                    <div className="h-10 w-full bg-zinc-800/50 rounded-md overflow-hidden relative">
-                      <div
-                        className="h-full bg-blue-400/90 hover:bg-blue-400 transition-all duration-1000 ease-out flex items-center justify-end px-3"
-                        style={{ width: `${Math.max(genre.percent, 2)}%` }} // Ensure at least 2% width so it's visible
+              <div className="flex flex-col md:flex-row items-center justify-center gap-12">
+                {/* 1. The Pie Chart */}
+                <div className="w-full md:w-1/2 h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={topGenres}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60} // Makes it a Donut Chart
+                        outerRadius={100}
+                        paddingAngle={5}
+                        dataKey="count"
+                        stroke="none"
                       >
-                        {/* Optional: Show percentage inside bar if wide enough */}
-                        {genre.percent > 10 && (
-                          <span className="text-blue-900 font-bold text-xs">
-                            {/* You could show count here if desired */}
-                          </span>
-                        )}
+                        {topGenres.map((entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={CHART_COLORS[index % CHART_COLORS.length]}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<CustomTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* 2. Custom Legend/List */}
+                <div className="w-full md:w-1/2 flex flex-col justify-center gap-3">
+                  {topGenres.map((genre, index) => (
+                    <div
+                      key={genre.name}
+                      className="flex items-center justify-between group p-2 hover:bg-zinc-800/50 rounded-lg transition-colors cursor-default"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-3 h-3 rounded-full shadow-[0_0_8px_currentColor]"
+                          style={{
+                            backgroundColor:
+                              CHART_COLORS[index % CHART_COLORS.length],
+                            color: CHART_COLORS[index % CHART_COLORS.length],
+                          }}
+                        />
+                        <span className="text-zinc-200 capitalize font-medium">
+                          {genre.name}
+                        </span>
                       </div>
+                      <span className="text-zinc-500 text-sm font-mono">
+                        {genre.count} hits
+                      </span>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -385,8 +425,6 @@ export default function ProfilePage() {
                   .map((_, i) => (
                     <div key={i} className="min-w-[140px] space-y-3">
                       <Skeleton className="w-[140px] h-[140px] rounded-md bg-zinc-800" />
-                      <Skeleton className="w-3/4 h-4 rounded bg-zinc-800" />
-                      <Skeleton className="w-1/2 h-3 rounded bg-zinc-800" />
                     </div>
                   ))
               ) : recentTracks.length === 0 ? (
