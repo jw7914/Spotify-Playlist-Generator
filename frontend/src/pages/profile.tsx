@@ -104,6 +104,7 @@ interface GenreStat {
   name: string;
   count: number;
   percent: number;
+  [key: string]: any;
 }
 
 const getRelativeTime = (dateString: string) => {
@@ -369,7 +370,7 @@ export default function ProfilePage() {
                         dataKey="count"
                         stroke="none"
                       >
-                        {topGenres.map((entry, index) => (
+                        {topGenres.map((_, index) => (
                           <Cell
                             key={`cell-${index}`}
                             fill={CHART_COLORS[index % CHART_COLORS.length]}
