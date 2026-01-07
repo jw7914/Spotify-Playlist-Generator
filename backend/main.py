@@ -736,7 +736,7 @@ async def create_agent_session(request: Request):
 
 
     # Post to the MCP HTTP wrapper
-    agent_url = "http://127.0.0.1:8080/apps//agent/users/test_user/sessions/test_session"
+    agent_url = "http://127.0.0.1:8080/apps/agent/users/test_user/sessions/test_session"
     try:
         req = urllib.request.Request(
             agent_url,
@@ -799,26 +799,11 @@ async def chat_endpoint(request: ChatRequest):
         # 1. Prepare the conversation history
         # We start with an empty list for the SDK contents
 
-        # 2. Add System Instruction (Optional but recommended)
-        # This gives the AI its "persona" as a music assistant.
-        # Note: In the new SDK, system instructions are often passed as config, 
-        # but a simple way is to prepend it as a 'user' message or rely on model config.
-        # For simplicity here, we stick to the message history.
-        
-        # 3. Convert Frontend History to SDK 'Content' objects
-        # for item in request.history:
-        #     chat_contents.append(types.Content(
-        #         role=item.role, # Must be "user" or "model"
-        #         parts=[types.Part.from_text(text=p) for p in item.parts]
-        #     ))
-        # 4. Add the CURRENT user message to the end
+       
+        # 2. Add the CURRENT user message to the end
         chat_contents = [{"text": request.message}]
         
-        # 5. Call the API with the FULL history
-        # response = await client.aio.models.generate_content(
-        #     model=GEMINI_MODEL,
-        #     contents=chat_contents
-        # )
+        # 3. Call the API with the FULL history
         url = "http://127.0.0.1:8080/run"
 
         payload = {
@@ -840,27 +825,34 @@ async def chat_endpoint(request: ChatRequest):
             },
             method="POST",
         )
-
+        extracted_id = None
         with urllib.request.urlopen(req) as response:
             status = response.getcode()
             resp_text = response.read().decode("utf-8")
             data = json.loads(resp_text)
             last_message = data[-1]
-
+            if len(data) > 2:
+                last_tool = data[-2]
+                tool = last_tool['content']['parts'][0]['functionResponse']
+                if tool['name'] == "create_playlist_from_queries":
+                    extracted_id = tool['response']['playlist_id']
             user_text = last_message['content']['parts'][0]['text']
+            
 
         if status < 200 or status >= 300:
             raise HTTPException(status_code=502, detail=f"Error {status}: {resp_text}")
 
-        # 6. Return the text AND the updated history
-        # The frontend needs the new history to maintain state
+
+        # 3. Update the history
         updated_history = request.history + [
             ChatHistoryItem(role="user", parts=[request.message]),
             ChatHistoryItem(role="model", parts=[user_text])
         ]
 
+        # 4. Return text, history, AND the explicit playlist_id
         return {
             "text": user_text,
+            "playlist_id": extracted_id,  
             "history": updated_history
         }
 

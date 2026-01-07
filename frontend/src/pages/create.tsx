@@ -75,6 +75,17 @@ export default function CreateWithAIPage() {
     }));
   };
 
+  // --- Handle opening spotify playlist ---
+  const handleOpenPlaylist = (playlistId: string) => {
+    if (!playlistId) return;
+    
+    // Construct the Spotify URL
+    const spotifyUrl = `https://open.spotify.com/playlist/${playlistId}`;
+    
+    // Open in a new tab
+    window.open(spotifyUrl, '_blank', 'noopener,noreferrer');
+  };
+
   // --- Handle Sending ---
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -127,7 +138,7 @@ export default function CreateWithAIPage() {
         content: data.text,
         type: isPlaylistContext ? "playlist-preview" : "text",
         playlistData: isPlaylistContext
-          ? { name: "Generated Mix", trackCount: "20+" } // Placeholder
+          ? { name: "Generated Mix", trackCount: "20+" , id: data.playlist_id } // Placeholder
           : undefined,
       };
 
@@ -273,6 +284,8 @@ export default function CreateWithAIPage() {
                           color="success"
                           variant="flat"
                           isIconOnly
+                          onClick={() => handleOpenPlaylist(msg.playlistData.id)}
+                          isDisabled={!msg.playlistData.id}
                         >
                           <Music size={16} />
                         </Button>
