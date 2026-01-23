@@ -32,7 +32,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await fetch("/api/me");
+        const res = await fetch("/api/spotify/me");
 
         if (res.ok) {
           const data = await res.json();
@@ -53,7 +53,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await fetch("/api/spotify/auth/logout", { method: "POST" });
       setUser(null);
       navigate("/"); // Redirect to home on logout
     } catch (error) {

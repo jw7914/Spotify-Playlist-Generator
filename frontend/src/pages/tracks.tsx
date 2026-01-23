@@ -94,7 +94,7 @@ export default function PlaylistDetailsPage() {
     // Assumes your backend proxies GET /playlists/{id}
     // Note: The endpoint in your screenshot (/tracks) only returns the list.
     // Usually, you want the parent endpoint (/playlists/{id}) to get the cover art + tracks.
-    fetch(`/api/playlists/${id}`)
+    fetch(`/api/spotify/playlists/${id}`)
       .then(async (res) => {
         if (res.status === 401) {
           navigate("/login", { replace: true });

@@ -141,7 +141,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (isAuthenticated) {
       setRecentLoading(true);
-      fetch("/api/recently-played?limit=10")
+      fetch("/api/spotify/recently-played?limit=10")
         .then((res) => res.json())
         .then((data) => {
           if (data.items) setRecentTracks(data.items);

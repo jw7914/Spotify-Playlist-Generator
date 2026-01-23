@@ -4,7 +4,7 @@ export default function LoginPage() {
   useEffect(() => {
     // This logic runs immediately when the page loads
     const backend = import.meta.env.DEV ? "http://127.0.0.1:8000" : "";
-    window.location.href = `${backend}/api/auth/login`;
+    window.location.href = `${backend}/api/spotify/auth/login`;
   }, []);
 
   return (

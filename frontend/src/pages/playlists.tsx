@@ -38,7 +38,7 @@ export default function PlaylistsPage() {
 
   useEffect(() => {
     setLoading(true);
-    fetch("/api/playlists", { redirect: "manual" })
+    fetch("/api/spotify/playlists", { redirect: "manual" })
       .then(async (res) => {
         if (
           res.type === "opaqueredirect" ||

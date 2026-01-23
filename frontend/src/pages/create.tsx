@@ -30,7 +30,7 @@ export default function CreateWithAIPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
+
   // Initial Welcome Message
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -47,11 +47,11 @@ export default function CreateWithAIPage() {
   };
   useEffect(() => {
     const create_session = async () => {
-      const response = await fetch("/api/agent-session", {
+      const response = await fetch("/api/gemini/agent-session", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-        }
+        },
       });
 
       if (!response.ok) {
@@ -67,7 +67,7 @@ export default function CreateWithAIPage() {
 
   // --- Helper: Convert Frontend Messages to Backend History ---
   const getHistoryForBackend = (
-    currentMessages: Message[]
+    currentMessages: Message[],
   ): BackendHistoryItem[] => {
     return currentMessages.map((msg) => ({
       role: msg.role === "ai" ? "model" : "user",
@@ -78,12 +78,12 @@ export default function CreateWithAIPage() {
   // --- Handle opening spotify playlist ---
   const handleOpenPlaylist = (playlistId: string) => {
     if (!playlistId) return;
-    
+
     // Construct the Spotify URL
     const spotifyUrl = `https://open.spotify.com/playlist/${playlistId}`;
-    
+
     // Open in a new tab
-    window.open(spotifyUrl, '_blank', 'noopener,noreferrer');
+    window.open(spotifyUrl, "_blank", "noopener,noreferrer");
   };
 
   // --- Handle Sending ---
@@ -111,7 +111,7 @@ export default function CreateWithAIPage() {
       };
 
       // 3. Call the API
-      const response = await fetch("/api/chat", {
+      const response = await fetch("/api/gemini/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -138,7 +138,7 @@ export default function CreateWithAIPage() {
         content: data.text,
         type: isPlaylistContext ? "playlist-preview" : "text",
         playlistData: isPlaylistContext
-          ? { name: "Generated Mix", trackCount: "20+" , id: data.playlist_id } // Placeholder
+          ? { name: "Generated Mix", trackCount: "20+", id: data.playlist_id } // Placeholder
           : undefined,
       };
 
@@ -284,7 +284,9 @@ export default function CreateWithAIPage() {
                           color="success"
                           variant="flat"
                           isIconOnly
-                          onClick={() => handleOpenPlaylist(msg.playlistData.id)}
+                          onClick={() =>
+                            handleOpenPlaylist(msg.playlistData.id)
+                          }
                           isDisabled={!msg.playlistData.id}
                         >
                           <Music size={16} />

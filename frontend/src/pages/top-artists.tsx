@@ -57,9 +57,12 @@ export default function TopArtistsPage() {
           limit: limit,
         });
 
-        const res = await fetch(`/api/top-artists?${params.toString()}`, {
-          redirect: "manual",
-        });
+        const res = await fetch(
+          `/api/spotify/top-artists?${params.toString()}`,
+          {
+            redirect: "manual",
+          },
+        );
 
         if (
           res.type === "opaqueredirect" ||
@@ -72,7 +75,7 @@ export default function TopArtistsPage() {
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}));
           throw new Error(
-            errorData.detail || `Failed to fetch: ${res.statusText}`
+            errorData.detail || `Failed to fetch: ${res.statusText}`,
           );
         }
 
