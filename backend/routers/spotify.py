@@ -346,8 +346,10 @@ def get_top_artists(request: Request, time_range: str = "medium_term", limit: in
 
     if not access_token: return RedirectResponse(url="/api/auth/login")
 
-    try: expires_at = float(expires_at_raw) if expires_at_raw else 0
-    except: expires_at = 0
+    try:
+        expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except Exception:
+        expires_at = 0
 
     if datetime.now().timestamp() > expires_at:
         token_data = handle_token_refresh(refresh_token)
