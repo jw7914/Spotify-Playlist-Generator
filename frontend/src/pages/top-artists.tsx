@@ -22,6 +22,8 @@ import {
   CalendarClock,
 } from "lucide-react";
 
+import { api, AuthError } from "../services/api";
+
 interface Artist {
   id: string;
   name: string;
@@ -51,38 +53,14 @@ export default function TopArtistsPage() {
 
     const fetchTopArtists = async () => {
       try {
-        // Construct URL with both limit and time_range
-        const params = new URLSearchParams({
-          time_range: timeRange,
-          limit: limit,
-        });
-
-        const res = await fetch(
-          `/api/spotify/top-artists?${params.toString()}`,
-          {
-            redirect: "manual",
-          },
-        );
-
-        if (
-          res.type === "opaqueredirect" ||
-          (res.status >= 300 && res.status < 400)
-        ) {
-          navigate("/login", { replace: true });
-          return;
-        }
-
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => ({}));
-          throw new Error(
-            errorData.detail || `Failed to fetch: ${res.statusText}`,
-          );
-        }
-
-        const data = await res.json();
+        const data = await api.spotify.getTopArtists(timeRange, limit);
         setArtists(data.artists || []);
       } catch (err: any) {
-        setError(err.message || "An unknown error occurred");
+        if (err instanceof AuthError) {
+           navigate("/login", { replace: true });
+        } else {
+           setError(err.message || "An unknown error occurred");
+        }
       } finally {
         setLoading(false);
       }

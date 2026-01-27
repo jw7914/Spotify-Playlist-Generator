@@ -20,6 +20,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 
+import { api, AuthError } from "../services/api";
+
 // --- Interfaces based on Spotify API Structure ---
 
 interface Artist {
@@ -91,22 +93,17 @@ export default function PlaylistDetailsPage() {
     if (!id) return;
 
     setLoading(true);
-    // Assumes your backend proxies GET /playlists/{id}
-    // Note: The endpoint in your screenshot (/tracks) only returns the list.
-    // Usually, you want the parent endpoint (/playlists/{id}) to get the cover art + tracks.
-    fetch(`/api/spotify/playlists/${id}`)
-      .then(async (res) => {
-        if (res.status === 401) {
-          navigate("/login", { replace: true });
-          return;
-        }
-        if (!res.ok) throw new Error("Failed to load playlist");
-        return res.json();
-      })
+    api.spotify.getPlaylist(id)
       .then((data) => {
         if (data) setPlaylist(data);
       })
-      .catch((err) => setError(err.message))
+      .catch((err) => {
+          if (err instanceof AuthError) {
+              navigate("/login", { replace: true });
+          } else {
+              setError(err.message);
+          }
+      })
       .finally(() => setLoading(false));
   }, [id, navigate]);
 

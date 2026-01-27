@@ -10,6 +10,7 @@ import {
   Skeleton,
 } from "@heroui/react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { api } from "../services/api";
 
 // --- Icons ---
 const PlaylistIcon = () => (
@@ -141,8 +142,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (isAuthenticated) {
       setRecentLoading(true);
-      fetch("/api/spotify/recently-played?limit=10")
-        .then((res) => res.json())
+      api.spotify.getRecentlyPlayed(10)
         .then((data) => {
           if (data.items) setRecentTracks(data.items);
         })
@@ -155,8 +155,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (isAuthenticated) {
       setGenresLoading(true);
-      fetch(`/api/spotify/top-artists?limit=50&time_range=${genreTimeRange}`)
-        .then((res) => res.json())
+      api.spotify.getTopArtists(genreTimeRange, 50)
         .then((data) => {
           if (data.artists) {
             calculateGenres(data.artists);

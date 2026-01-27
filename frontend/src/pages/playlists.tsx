@@ -30,6 +30,8 @@ const DefaultPlaylistImage = () => (
   </div>
 );
 
+import { api, AuthError } from "../services/api";
+
 export default function PlaylistsPage() {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,25 +40,18 @@ export default function PlaylistsPage() {
 
   useEffect(() => {
     setLoading(true);
-    fetch("/api/spotify/playlists", { redirect: "manual" })
-      .then(async (res) => {
-        if (
-          res.type === "opaqueredirect" ||
-          (res.status >= 300 && res.status < 400)
-        ) {
-          navigate("/login", { replace: true });
-          return;
-        }
-        if (!res.ok) throw new Error("Failed to fetch playlists");
-        return res.json();
-      })
+    api.spotify.getPlaylists()
       .then((data) => {
         if (!data) return;
         setPlaylists(data.playlists || []);
         setError(null);
       })
       .catch((err) => {
-        setError(err.message || "Unknown error");
+        if (err instanceof AuthError) {
+             navigate("/login", { replace: true });
+        } else {
+             setError(err.message || "Unknown error");
+        }
       })
       .finally(() => setLoading(false));
   }, [navigate]);

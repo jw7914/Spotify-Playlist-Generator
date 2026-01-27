@@ -11,6 +11,8 @@ import {
 import { Send, Sparkles, Bot, User, Music, Disc3 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
+import { api } from "../services/api";
+
 // --- Types ---
 interface Message {
   id: string;
@@ -47,15 +49,10 @@ export default function CreateWithAIPage() {
   };
   useEffect(() => {
     const create_session = async () => {
-      const response = await fetch("/api/gemini/agent-session", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.statusText}`);
+      try {
+        await api.gemini.createSession();
+      } catch (e) {
+        console.error("Failed to create session", e);
       }
     };
 
@@ -104,26 +101,11 @@ export default function CreateWithAIPage() {
     setIsLoading(true);
 
     try {
-      // 2. Prepare Payload
-      const payload = {
-        message: userMsg.content,
-        history: getHistoryForBackend(messages),
-      };
+      // 2. Prepare History
+      const history = getHistoryForBackend(messages);
 
       // 3. Call the API
-      const response = await fetch("/api/gemini/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.statusText}`);
-      }
-
-      const data = await response.json();
+      const data = await api.gemini.chat(userMsg.content, history);
       console.log(data);
 
       // 4. Process AI Response
