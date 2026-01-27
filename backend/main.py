@@ -8,16 +8,6 @@ from routers import spotify, gemini
 # --- App Initialization ---
 app = FastAPI(title="Spotify Playlist Generator")
 
-# --- Middleware ---
-# If you need CORS during dev, uncomment and configure:
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["http://localhost:5173"],
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
-
 # --- API Router ---
 api_router = APIRouter(prefix="/api")
 api_router.include_router(spotify.router, prefix="/spotify")
