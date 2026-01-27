@@ -155,7 +155,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (isAuthenticated) {
       setGenresLoading(true);
-      fetch(`/api/top-artists?limit=50&time_range=${genreTimeRange}`)
+      fetch(`/api/spotify/top-artists?limit=50&time_range=${genreTimeRange}`)
         .then((res) => res.json())
         .then((data) => {
           if (data.artists) {
