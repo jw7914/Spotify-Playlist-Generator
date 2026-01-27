@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
-from routers import spotify, gemini
+from backend.routers import spotify, gemini
 
 # --- App Initialization ---
 app = FastAPI(title="Spotify Playlist Generator")
