@@ -2,7 +2,7 @@ from fastapi import FastAPI, APIRouter
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from config import FRONTEND_DIST
+from .config import FRONTEND_DIST
 from routers import spotify, gemini
 
 # --- App Initialization ---
