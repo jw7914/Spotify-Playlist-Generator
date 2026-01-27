@@ -2,7 +2,7 @@ from fastapi import FastAPI, APIRouter
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from config import FRONTEND_DIST
+from pathlib import Path
 from routers import spotify, gemini
 
 # --- App Initialization ---
@@ -20,6 +20,8 @@ def list_routes():
     return [r.path for r in app.router.routes]
 
 # --- Static Files & Frontend ---
+BASE_DIR = Path(__file__).resolve().parent
+FRONTEND_DIST = (BASE_DIR.parent / "frontend" / "dist").resolve()
 app.mount(
     "/assets",
     StaticFiles(directory=FRONTEND_DIST / "assets"),

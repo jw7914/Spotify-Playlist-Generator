@@ -5,8 +5,12 @@ from google.genai import types
 import urllib.request
 import urllib.error
 import json
-from config import GEMINI_API_KEY, GEMINI_MODEL, MCP_AGENT_URL
 from models import ChatRequest, ChatHistoryItem
+import os
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = "gemma-3-12b-it"
+MCP_AGENT_URL = "http://127.0.0.1:8080"
 
 router = APIRouter()
 

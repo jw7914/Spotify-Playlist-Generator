@@ -7,13 +7,13 @@ import json
 import base64
 import secrets
 from datetime import datetime
-from config import (
-    SPOTIFY_CLIENT_ID, 
-    SPOTIFY_CLIENT_SECRET, 
-    REDIRECT_URI, 
-    API_BASE_URL, 
-    STATE_TTL
-)
+import os
+
+API_BASE_URL = "https://api.spotify.com/v1"
+STATE_TTL = 300
+SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
+SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
+REDIRECT_URI = os.getenv("REDIRECT_URI") or "http://127.0.0.1:8000/api/spotify/auth/callback"
 
 router = APIRouter()
 
