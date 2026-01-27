@@ -84,5 +84,11 @@ export const api = {
     },
     
     getMe: () => fetchJson<any>(`${BASE_URL}/spotify/me`),
+    
+    // type: "track" | "artist" | "album" | "playlist"
+    search: (query: string, type: string = "track", limit: number = 20) => {
+        const params = new URLSearchParams({ q: query, type, limit: String(limit) });
+        return fetchJson<any>(`${BASE_URL}/spotify/search?${params.toString()}`, { redirect: "manual" });
+    },
   }
 };

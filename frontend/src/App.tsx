@@ -10,6 +10,7 @@ import NotFoundPage from "@/pages/404";
 import LoginPage from "@/pages/login";
 import LogoutPage from "@/pages/logout";
 import CreateWithAIPage from "@/pages/create";
+import SearchPage from "@/pages/search";
 import { Navbar } from "@/components/navbar";
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
         <Route element={<PlaylistsPage />} path="/playlists" />
         <Route element={<PlaylistDetailsPage />} path="/playlists/:id" />
         <Route element={<TopArtistsPage />} path="/top-artists" />
+        <Route element={<SearchPage />} path="/search" />
         <Route element={<ProfilePage />} path="/profile" />
         <Route element={<LoginPage />} path="/login" />
         <Route element={<LogoutPage />} path="/logout" />

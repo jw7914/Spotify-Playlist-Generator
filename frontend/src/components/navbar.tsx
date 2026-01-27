@@ -32,6 +32,7 @@ export const Navbar = () => {
     () => [
       { key: "/", href: "/", title: "Home" },
       { key: "/create", href: "/create", title: "Create With AI" },
+      { key: "/search", href: "/search", title: "Search" },
     ],
     []
   );

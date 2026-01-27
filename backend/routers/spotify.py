@@ -442,4 +442,49 @@ def get_recently_played(request: Request, limit: int = 10):
         resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
         return resp
         
+
     return {"items": formatted_items}
+
+@router.get("/search")
+def search_spotify(request: Request, q: str, type: str = "track", limit: int = 20):
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token: return RedirectResponse(url="/api/auth/login")
+
+    try: expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except: expires_at = 0
+
+    new_cookie_needed = False
+    
+    if datetime.now().timestamp() > expires_at:
+        token_data = handle_token_refresh(refresh_token)
+        if not token_data: return RedirectResponse(url="/api/auth/login")
+        access_token = token_data.get("access_token")
+        expires_at = datetime.now().timestamp() + (token_data.get("expires_in") or 0)
+        new_cookie_needed = True
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {"q": q, "type": type, "limit": limit}
+    url = f"{API_BASE_URL}/search?{urllib.parse.urlencode(params)}"
+    
+    try:
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as he:
+        if he.code == 401: return RedirectResponse(url="/api/auth/login")
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+
+    # Return raw structure or format it. For search, raw is often versatile enough for the frontend
+    # but let's format slightly to match our other endpoints if necessary.
+    # For now, returning standard Spotify search response structure.
+    
+    if new_cookie_needed:
+        resp = JSONResponse(data)
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+        
+    return data
