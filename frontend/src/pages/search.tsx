@@ -37,6 +37,7 @@ export default function SearchPage() {
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
   const [playlists, setPlaylists] = useState<{id: string, name: string}[]>([]);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   const navigate = useNavigate();
@@ -76,6 +77,7 @@ export default function SearchPage() {
     setLoading(true);
     setError(null);
     setResults([]);
+    setHasSearched(true);
 
     try {
       const data = await api.spotify.search(query, searchType);
@@ -142,7 +144,10 @@ export default function SearchPage() {
                 <Input 
                     placeholder="What do you want to listen to?" 
                     value={query}
-                    onValueChange={setQuery}
+                    onValueChange={(val) => {
+                        setQuery(val);
+                        setHasSearched(false);
+                    }}
                     onKeyDown={handleKeyDown}
                     size="lg"
                     startContent={<Search className="text-zinc-300" />}
@@ -265,7 +270,7 @@ export default function SearchPage() {
                         </CardBody>
                     </Card>
                 ))
-            ) : query && !loading && !error && (
+            ) : results.length === 0 && hasSearched && !loading && !error && (
                  <div className="col-span-full text-center py-20 text-zinc-300">
                     No results found for "{query}".
                  </div>
