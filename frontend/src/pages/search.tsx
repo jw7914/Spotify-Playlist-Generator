@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Input,
   Button,
@@ -8,8 +8,13 @@ import {
   CardBody,
   Image,
   Skeleton,
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownItem,
+  Tooltip,
 } from "@heroui/react";
-import { Search, Music, Disc, User as UserIcon, ListMusic } from "lucide-react";
+import { Search, Music, Disc, User as UserIcon, Plus, CheckCircle, XCircle } from "lucide-react";
 import { api, AuthError } from "../services/api";
 import { useNavigate } from "react-router-dom";
 
@@ -32,11 +37,40 @@ export default function SearchPage() {
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [playlists, setPlaylists] = useState<{id: string, name: string}[]>([]);
+  const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Fetch playlists to check if user has any to add tracks to
+    api.spotify.getPlaylists().then(data => {
+        setPlaylists(data.playlists);
+    }).catch(() => {
+        // Silent fail or just empty playlists
+    });
+  }, []);
+
+  useEffect(() => {
+      if (toast) {
+          const timer = setTimeout(() => setToast(null), 3000);
+          return () => clearTimeout(timer);
+      }
+  }, [toast]);
+
+  const handleAddToPlaylist = async (playlistId: string, trackUri: string) => {
+      try {
+          await api.spotify.addTracksToPlaylist(playlistId, [trackUri]);
+          setToast({ message: "Track added to playlist!", type: "success" });
+      } catch (err) {
+          console.error(err);
+          setToast({ message: "Failed to add track.", type: "error" });
+      }
+  };
 
   // Debounce search? Or just search on Enter/Button.
   // Converting to search-on-enter for simplicity and to avoid rate limits during typing
-  const handleSearch = async () => {
+  const handleSearch = async (overrideType?: string) => {
+    const searchType = overrideType || type;
     if (!query.trim()) return;
 
     setLoading(true);
@@ -44,11 +78,11 @@ export default function SearchPage() {
     setResults([]);
 
     try {
-      const data = await api.spotify.search(query, type);
+      const data = await api.spotify.search(query, searchType);
       
       // Parse results based on type. keys are 'tracks', 'artists', 'albums', 'playlists' + 'items'
       let items: SearchResultItem[] = [];
-      const pluralType = type + "s"; // track -> tracks, artist -> artists
+      const pluralType = searchType + "s"; // track -> tracks, artist -> artists
       
       if (data && data[pluralType] && data[pluralType].items) {
           items = data[pluralType].items;
@@ -88,7 +122,15 @@ export default function SearchPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 max-w-7xl mx-auto">
+    <div className="min-h-screen bg-black text-white p-6 max-w-7xl mx-auto relative">
+      {/* Toast Notification */}
+      {toast && (
+          <div className={`fixed bottom-8 right-8 z-50 px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 border ${toast.type === "success" ? "bg-zinc-900 border-green-500/50 text-white" : "bg-red-900/90 border-red-500/50 text-white"} animate-in fade-in slide-in-from-bottom-4 duration-300`}>
+              {toast.type === "success" ? <CheckCircle className="text-green-500" size={24} /> : <XCircle className="text-red-500" size={24} />}
+              <span className="font-medium">{toast.message}</span>
+          </div>
+      )}
+
       <div className="flex flex-col gap-8">
         {/* Header & Search Bar */}
         <div className="flex flex-col gap-4">
@@ -113,7 +155,12 @@ export default function SearchPage() {
                 
                 <Select
                     selectedKeys={[type]}
-                    onChange={(e) => setType(e.target.value)}
+                    onChange={(e) => {
+                        const newType = e.target.value;
+                        setType(newType);
+                        setResults([]);
+                        if(query) handleSearch(newType);
+                    }}
                     disallowEmptySelection
                     className="w-full md:w-48"
                     size="lg"
@@ -132,13 +179,12 @@ export default function SearchPage() {
                     <SelectItem key="track" startContent={<Music size={18} />}>Tracks</SelectItem>
                     <SelectItem key="artist" startContent={<UserIcon size={18} />}>Artists</SelectItem>
                     <SelectItem key="album" startContent={<Disc size={18} />}>Albums</SelectItem>
-                    <SelectItem key="playlist" startContent={<ListMusic size={18} />}>Playlists</SelectItem>
                 </Select>
                 
                 <Button 
                     size="lg" 
                     className="bg-green-500 text-black font-bold w-full md:w-auto"
-                    onPress={handleSearch}
+                    onPress={() => handleSearch()}
                     isLoading={loading}
                 >
                     Search
@@ -176,8 +222,44 @@ export default function SearchPage() {
                                 radius="lg"
                                 width="100%"
                              />
-                             <div className="flex flex-col gap-1 text-left">
-                                <h3 className="font-bold text-white text-md line-clamp-1" title={item.name}>{item.name}</h3>
+                             <div className="flex flex-col gap-1 text-left relative group">
+                                <div className="flex justify-between items-start">
+                                    <h3 className="font-bold text-white text-md line-clamp-1 pr-6" title={item.name}>{item.name}</h3>
+                                    {item.uri.includes(":track:") && (
+                                        <div className="absolute right-0 top-0" onClick={(e) => e.stopPropagation()}>
+                                            <Dropdown placement="bottom-end">
+                                                <Tooltip content="Add to playlist" closeDelay={0}>
+                                                    <div className="inline-block">
+                                                        <DropdownTrigger>
+                                                            <Button isIconOnly size="sm" variant="light" className="text-white hover:text-green-500 min-w-0 w-6 h-6 data-[hover=true]:bg-transparent">
+                                                                <Plus size={16} />
+                                                            </Button>
+                                                        </DropdownTrigger>
+                                                    </div>
+                                                </Tooltip>
+                                                <DropdownMenu 
+                                                    aria-label="Add to playlist"
+                                                    items={playlists.length > 0 ? playlists : [{id: "login", name: "Log in to add tracks"}]}
+                                                    onAction={(key) => {
+                                                        if (key === "login") {
+                                                            navigate("/login");
+                                                        } else {
+                                                            handleAddToPlaylist(key as string, item.uri);
+                                                        }
+                                                    }}
+                                                    className="max-h-64 overflow-y-auto"
+                                                    variant="flat"
+                                                >
+                                                    {(item) => (
+                                                        <DropdownItem key={item.id} className={item.id === "login" ? "text-green-500 font-bold" : "text-black"}>
+                                                            {item.name}
+                                                        </DropdownItem>
+                                                    )}
+                                                </DropdownMenu>
+                                            </Dropdown>
+                                        </div>
+                                    )}
+                                </div>
                                 <p className="text-xs text-zinc-300 line-clamp-1">{getSubtitle(item)}</p>
                              </div>
                         </CardBody>

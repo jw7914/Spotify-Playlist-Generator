@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request, Response
+from pydantic import BaseModel
 from fastapi.responses import RedirectResponse, JSONResponse
 import urllib.parse
 import urllib.request
@@ -16,6 +17,41 @@ SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 REDIRECT_URI = os.getenv("REDIRECT_URI") or "http://127.0.0.1:8000/api/spotify/auth/callback"
 
 router = APIRouter()
+
+# --- App Token Implementation (Client Credentials) ---
+_app_token = None
+_app_token_expires = 0
+
+def get_app_token():
+    global _app_token, _app_token_expires
+    now = datetime.now().timestamp()
+    
+    # Return cached if valid (buffer 60s)
+    if _app_token and now < _app_token_expires - 60:
+        return _app_token
+        
+    # Request new token
+    token_url = "https://accounts.spotify.com/api/token"
+    auth_str = f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}"
+    auth_b64 = base64.b64encode(auth_str.encode()).decode()
+    
+    headers = {
+        "Authorization": f"Basic {auth_b64}",
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    data = {"grant_type": "client_credentials"}
+    
+    try:
+        encoded = urllib.parse.urlencode(data).encode()
+        req = urllib.request.Request(token_url, data=encoded, headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = json.loads(resp.read().decode())
+            _app_token = body["access_token"]
+            _app_token_expires = now + body["expires_in"]
+            return _app_token
+    except Exception as e:
+        print(f"App token error: {e}")
+        return None
 
 # --- Helper: Token Refresh Logic ---
 def handle_token_refresh(refresh_token: str):
@@ -50,7 +86,7 @@ def handle_token_refresh(refresh_token: str):
 
 @router.get("/auth/login")
 def login():
-    scope = "user-read-private user-read-email user-top-read user-read-recently-played"
+    scope = "user-read-private user-read-email user-top-read user-read-recently-played playlist-modify-public playlist-modify-private"
     state = secrets.token_urlsafe(16)
     params = {
         "client_id": SPOTIFY_CLIENT_ID,
@@ -290,6 +326,49 @@ def get_playlist_details(playlist_id: str, request: Request):
         "tracks": {"total": tracks_data.get("total"), "items": formatted_tracks}
     }
 
+class AddTracksRequest(BaseModel):
+    uris: list[str]
+
+@router.post("/playlists/{playlist_id}/tracks")
+def add_tracks_to_playlist(playlist_id: str, body: AddTracksRequest, request: Request):
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token: return RedirectResponse(url="/api/auth/login")
+
+    try: expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except: expires_at = 0
+
+    new_cookie_needed = False
+    
+    if datetime.now().timestamp() > expires_at:
+        token_data = handle_token_refresh(refresh_token)
+        if not token_data: return RedirectResponse(url="/api/auth/login")
+        access_token = token_data.get("access_token")
+        expires_at = datetime.now().timestamp() + (token_data.get("expires_in") or 0)
+        new_cookie_needed = True
+
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+    url = f"{API_BASE_URL}/playlists/{playlist_id}/tracks"
+    
+    try:
+        data_bytes = json.dumps({"uris": body.uris}).encode("utf-8")
+        req = urllib.request.Request(url, data=data_bytes, headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as he:
+        if he.code == 401: return RedirectResponse(url="/api/auth/login")
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+
+    if new_cookie_needed:
+        resp = JSONResponse(data)
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+
+    return data
+
 @router.get("/me")
 def get_me(request: Request):
     access_token = request.cookies.get("access_token")
@@ -447,44 +526,25 @@ def get_recently_played(request: Request, limit: int = 10):
 
 @router.get("/search")
 def search_spotify(request: Request, q: str, type: str = "track", limit: int = 20):
-    access_token = request.cookies.get("access_token")
-    refresh_token = request.cookies.get("refresh_token")
-    expires_at_raw = request.cookies.get("expires_at")
-
-    if not access_token: return RedirectResponse(url="/api/auth/login")
-
-    try: expires_at = float(expires_at_raw) if expires_at_raw else 0
-    except: expires_at = 0
-
-    new_cookie_needed = False
-    
-    if datetime.now().timestamp() > expires_at:
-        token_data = handle_token_refresh(refresh_token)
-        if not token_data: return RedirectResponse(url="/api/auth/login")
-        access_token = token_data.get("access_token")
-        expires_at = datetime.now().timestamp() + (token_data.get("expires_in") or 0)
-        new_cookie_needed = True
+    # Use App Token (Public Search)
+    access_token = get_app_token()
+    if not access_token: 
+        raise HTTPException(status_code=500, detail="Failed to get app token")
 
     headers = {"Authorization": f"Bearer {access_token}"}
     params = {"q": q, "type": type, "limit": limit}
     url = f"{API_BASE_URL}/search?{urllib.parse.urlencode(params)}"
     
+    # ... standard request ...
     try:
         req = urllib.request.Request(url, headers=headers, method="GET")
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as he:
-        if he.code == 401: return RedirectResponse(url="/api/auth/login")
         raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
 
     # Return raw structure or format it. For search, raw is often versatile enough for the frontend
     # but let's format slightly to match our other endpoints if necessary.
     # For now, returning standard Spotify search response structure.
     
-    if new_cookie_needed:
-        resp = JSONResponse(data)
-        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
-        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
-        return resp
-        
     return data

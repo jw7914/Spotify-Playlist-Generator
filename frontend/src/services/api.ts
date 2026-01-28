@@ -88,7 +88,16 @@ export const api = {
     // type: "track" | "artist" | "album" | "playlist"
     search: (query: string, type: string = "track", limit: number = 20) => {
         const params = new URLSearchParams({ q: query, type, limit: String(limit) });
-        return fetchJson<any>(`${BASE_URL}/spotify/search?${params.toString()}`, { redirect: "manual" });
+        return fetchJson<any>(`${BASE_URL}/spotify/search?${params.toString()}`);
+    },
+
+    addTracksToPlaylist: (playlistId: string, uris: string[]) => {
+        return fetchJson<any>(`${BASE_URL}/spotify/playlists/${playlistId}/tracks`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uris }),
+            redirect: "manual"
+        });
     },
   }
 };
