@@ -240,6 +240,7 @@ def get_playlists(request: Request):
             "owner_id": (p.get("owner") or {}).get("id"),
             "tracks_total": (p.get("tracks") or {}).get("total"),
             "images": p.get("images", []),
+            "public": p.get("public"),
             "external_url": (p.get("external_urls") or {}).get("spotify"),
         })
 
@@ -358,7 +359,6 @@ def create_playlist(body: CreatePlaylistRequest, request: Request):
 
     # 2. Create Playlist
     url = f"{API_BASE_URL}/users/{user_id}/playlists"
-    
     payload = {
         "name": body.name,
         "description": body.description,
@@ -371,7 +371,6 @@ def create_playlist(body: CreatePlaylistRequest, request: Request):
         req = urllib.request.Request(url, data=data_bytes, headers=headers, method="POST")
         with urllib.request.urlopen(req, timeout=10) as resp:
             new_playlist = json.loads(resp.read().decode("utf-8"))
-            print(f"Playlist created: ID={new_playlist.get('id')}, Public={new_playlist.get('public')}")
     except urllib.error.HTTPError as he:
         if he.code == 401: return RedirectResponse(url="/api/auth/login")
         raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")

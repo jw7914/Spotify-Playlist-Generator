@@ -28,6 +28,7 @@ interface Playlist {
   tracks_total: number;
   images: { url: string }[] | null;
   external_url: string;
+  public: boolean;
 }
 
 const DefaultPlaylistImage = () => (
@@ -51,7 +52,7 @@ export default function PlaylistsPage() {
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const [newPlaylistName, setNewPlaylistName] = useState("");
   const [newPlaylistDesc, setNewPlaylistDesc] = useState("");
-  const [isPublic, setIsPublic] = useState(false);
+  const [isPublic, setIsPublic] = useState(true);
   const [creating, setCreating] = useState(false);
 
   // Delete Playlist State
@@ -107,7 +108,7 @@ export default function PlaylistsPage() {
         // Reset form
         setNewPlaylistName("");
         setNewPlaylistDesc("");
-        setIsPublic(false);
+        setIsPublic(true);
         setToast({ message: "Playlist created successfully!", type: "success" });
     } catch (err: any) {
         console.error("Failed to create playlist", err);
@@ -225,7 +226,7 @@ export default function PlaylistsPage() {
           ) : playlists.length === 0 ? (
             <div className="col-span-full flex flex-col items-center justify-center py-20 text-zinc-500">
               <Music size={64} className="mb-4 opacity-20" />
-              <p>No public playlists found on your Spotify account.</p>
+              <p>No playlists found on your Spotify account.</p>
             </div>
           ) : (
             playlists.map((playlist) => (
@@ -264,17 +265,30 @@ export default function PlaylistsPage() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-1 items-start">
-                    <h3
-                      className="font-bold text-white text-md line-clamp-1 w-full"
-                      title={playlist.name}
-                    >
-                      {playlist.name}
-                    </h3>
-                    <p className="text-xs text-zinc-400 line-clamp-1">
-                      By {playlist.owner}
-                    </p>
-                  </div>
+                    <div className="flex flex-col gap-1 items-start">
+                      <div className="flex w-full justify-between items-start gap-2">
+                        <h3
+                          className="font-bold text-white text-md line-clamp-1 flex-1"
+                          title={playlist.name}
+                        >
+                          {playlist.name}
+                        </h3>
+                         <Chip
+                            size="sm"
+                            variant="flat"
+                            className={`h-5 text-[10px] px-1 border ${
+                                playlist.public 
+                                ? "bg-zinc-800/50 text-zinc-400 border-zinc-700" 
+                                : "bg-red-500/10 text-red-500 border-red-500/20"
+                            }`}
+                        >
+                            {playlist.public ? "Public" : "Private"}
+                        </Chip>
+                      </div>
+                      <p className="text-xs text-zinc-400 line-clamp-1">
+                        By {playlist.owner}
+                      </p>
+                    </div>
                 </CardBody>
 
                 <CardFooter className="px-4 pb-4 pt-0 flex justify-between items-center text-small text-default-500">
