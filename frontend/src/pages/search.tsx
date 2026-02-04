@@ -15,6 +15,8 @@ import {
   ModalBody,
   ModalFooter,
   useDisclosure,
+  Switch,
+  Textarea,
 } from "@heroui/react";
 import { Search, Music, Disc, User as UserIcon, Plus, CheckCircle, XCircle } from "lucide-react";
 import { api, AuthError } from "../services/api";
@@ -47,6 +49,23 @@ export default function SearchPage() {
   const {isOpen, onOpen, onOpenChange} = useDisclosure();
   const [selectedTrackUri, setSelectedTrackUri] = useState<string | null>(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+
+  // Modal State for "Create Playlist"
+  const [modalView, setModalView] = useState<"list" | "create">("list");
+  const [newPlaylistName, setNewPlaylistName] = useState("");
+  const [newPlaylistDesc, setNewPlaylistDesc] = useState("");
+  const [isPublic, setIsPublic] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  // Reset modal state when closed
+  useEffect(() => {
+    if (!isOpen) {
+        setModalView("list");
+        setNewPlaylistName("");
+        setNewPlaylistDesc("");
+        setIsPublic(false);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     // Fetch user profile and playlists
@@ -85,6 +104,34 @@ export default function SearchPage() {
       } catch (err) {
           console.error(err);
           setToast({ message: "Failed to add track.", type: "error" });
+      }
+  };
+
+  const handleCreatePlaylistAndAddTrack = async (onClose: () => void) => {
+      if (!newPlaylistName.trim() || !selectedTrackUri) return;
+
+      setCreating(true);
+      try {
+          // 1. Create Playlist
+          const newPlaylist = await api.spotify.createPlaylist(newPlaylistName, newPlaylistDesc, isPublic);
+          
+          // 2. Add Track
+          await api.spotify.addTracksToPlaylist(newPlaylist.id, [selectedTrackUri]);
+          
+          // 3. Refresh Playlists (optional, but good for local state if we re-open)
+          // We can just append closer to UI state if needed, but fetching is cleaner
+          api.spotify.getPlaylists().then(data => {
+             const userId = data.playlists[0]?.owner.id; // Rough guess, or use stored user
+             setPlaylists(data.playlists.filter((p: any) => p.owner.id === userId || p.owner.id === p.owner.display_name)); 
+          });
+
+          setToast({ message: "Playlist created and track added!", type: "success" });
+          onClose();
+      } catch (err) {
+          console.error(err);
+          setToast({ message: "Failed to create playlist.", type: "error" });
+      } finally {
+          setCreating(false);
       }
   };
 
@@ -306,51 +353,116 @@ export default function SearchPage() {
         <ModalContent>
           {(onClose) => (
             <>
-              <ModalHeader className="flex flex-col gap-1">Add to Playlist</ModalHeader>
+              <ModalHeader className="flex flex-col gap-1">
+                  {modalView === "list" ? "Add to Playlist" : "Create New Playlist"}
+              </ModalHeader>
               <ModalBody>
-                {!isLoggedIn ? (
-                    <div className="flex flex-col items-center justify-center py-6 gap-4 text-center">
-                        <p className="text-zinc-300">You need to be logged in to add tracks to a playlist.</p>
-                        <Button 
-                            color="success" 
-                            variant="flat"
-                            onPress={() => {
-                                onClose();
-                                navigate("/login");
-                            }}
-                            className="font-bold"
-                        >
-                            Log in with Spotify
-                        </Button>
-                    </div>
-                ) : playlists.length > 0 ? (
-                    <div className="flex flex-col gap-2">
-                        {playlists.map(playlist => (
-                            <Button
-                                key={playlist.id}
-                                className="justify-start bg-zinc-800 hover:bg-zinc-700 text-white"
+                {modalView === "list" ? (
+                    !isLoggedIn ? (
+                        <div className="flex flex-col items-center justify-center py-6 gap-4 text-center">
+                            <p className="text-zinc-300">You need to be logged in to add tracks to a playlist.</p>
+                            <Button 
+                                color="success" 
+                                variant="flat"
                                 onPress={() => {
-                                    if(selectedTrackUri) {
-                                        handleAddToPlaylist(playlist.id, selectedTrackUri);
-                                        onClose();
-                                    }
+                                    onClose();
+                                    navigate("/login");
                                 }}
+                                className="font-bold"
                             >
-                                <Music size={16} className="mr-2" />
-                                {playlist.name}
+                                Log in with Spotify
                             </Button>
-                        ))}
-                    </div>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto">
+                            <Button 
+                                className="justify-start bg-green-500/10 text-green-500 hover:bg-green-500/20 font-bold mb-2"
+                                onPress={() => setModalView("create")}
+                            >
+                                <Plus size={16} className="mr-2" />
+                                Create New Playlist
+                            </Button>
+
+                            {playlists.length > 0 ? (
+                                playlists.map(playlist => (
+                                    <Button
+                                        key={playlist.id}
+                                        className="justify-start bg-zinc-800 hover:bg-zinc-700 text-white"
+                                        onPress={() => {
+                                            if(selectedTrackUri) {
+                                                handleAddToPlaylist(playlist.id, selectedTrackUri);
+                                                onClose();
+                                            }
+                                        }}
+                                    >
+                                        <Music size={16} className="mr-2" />
+                                        {playlist.name}
+                                    </Button>
+                                ))
+                            ) : (
+                                <div className="text-zinc-400 text-center py-4">
+                                    No playlists found.
+                                </div>
+                            )}
+                        </div>
+                    )
                 ) : (
-                    <div className="text-zinc-400 text-center py-4">
-                        No playlists found. Create one first!
+                    // Create View
+                    <div className="flex flex-col gap-4 py-2">
+                         <Input
+                            autoFocus
+                            label="Name"
+                            placeholder="My Awesome Playlist"
+                            variant="bordered"
+                            value={newPlaylistName}
+                            onValueChange={setNewPlaylistName}
+                            classNames={{
+                                inputWrapper: "border-white/20 data-[hover=true]:border-white/40 group-data-[focus=true]:border-green-500",
+                            }}
+                        />
+                        <Textarea
+                            label="Description"
+                            placeholder="Optional description..."
+                            variant="bordered"
+                            value={newPlaylistDesc}
+                            onValueChange={setNewPlaylistDesc}
+                            classNames={{
+                                inputWrapper: "border-white/20 data-[hover=true]:border-white/40 group-data-[focus=true]:border-green-500",
+                            }}
+                        />
+                        <div className="flex justify-between items-center px-1">
+                            <span className="text-sm text-zinc-400">Public Playlist</span>
+                            <Switch 
+                                isSelected={isPublic} 
+                                onValueChange={setIsPublic}
+                                size="sm"
+                                color="success"
+                            />
+                        </div>
                     </div>
                 )}
               </ModalBody>
               <ModalFooter>
-                <Button color="danger" variant="light" onPress={onClose}>
-                  Cancel
-                </Button>
+                {modalView === "create" ? (
+                    <>
+                        <Button variant="light" onPress={() => setModalView("list")}>
+                            Back
+                        </Button>
+                        <Button 
+                            color="success" 
+                            onPress={() => handleCreatePlaylistAndAddTrack(onClose)}
+                            isLoading={creating}
+                            isDisabled={!newPlaylistName.trim()}
+                            className="font-bold text-black"
+                        >
+                            Create & Add
+                        </Button>
+                    </>
+                ) : (
+                    <Button color="danger" variant="light" onPress={onClose}>
+                        Cancel
+                    </Button>
+                )}
               </ModalFooter>
             </>
           )}
