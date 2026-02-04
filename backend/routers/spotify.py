@@ -1,5 +1,4 @@
 from fastapi import APIRouter, HTTPException, Request, Response
-from pydantic import BaseModel
 from fastapi.responses import RedirectResponse, JSONResponse
 import urllib.parse
 import urllib.request
@@ -9,6 +8,7 @@ import base64
 import secrets
 from datetime import datetime
 import os
+from backend.routers.spotify_models import CreatePlaylistRequest, AddTracksRequest
 
 API_BASE_URL = "https://api.spotify.com/v1"
 STATE_TTL = 300
@@ -323,11 +323,6 @@ def get_playlist_details(playlist_id: str, request: Request):
         "tracks": {"total": tracks_data.get("total"), "items": formatted_tracks}
     }
 
-class CreatePlaylistRequest(BaseModel):
-    name: str
-    description: str = ""
-    public: bool = False
-
 @router.post("/playlists")
 def create_playlist(body: CreatePlaylistRequest, request: Request):
     access_token = request.cookies.get("access_token")
@@ -384,9 +379,6 @@ def create_playlist(body: CreatePlaylistRequest, request: Request):
         resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
     
     return resp
-
-class AddTracksRequest(BaseModel):
-    uris: list[str]
 
 @router.post("/playlists/{playlist_id}/tracks")
 def add_tracks_to_playlist(playlist_id: str, body: AddTracksRequest, request: Request):

@@ -5,7 +5,7 @@ from google.genai import types
 import urllib.request
 import urllib.error
 import json
-from backend.models import ChatRequest, ChatHistoryItem
+from backend.routers.gemini_models import ChatRequest, ChatHistoryItem
 import os
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
