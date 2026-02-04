@@ -13,6 +13,30 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { api } from "../services/api";
 
 // --- Icons ---
+const PlayIcon = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
+    <svg className={`w-8 h-8 fill-current ${className || ""}`} viewBox="0 0 24 24" {...props}>
+       <path d="M8 5v14l11-7z" />
+    </svg>
+);
+
+const PauseIcon = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
+    <svg className={`w-8 h-8 fill-current ${className || ""}`} viewBox="0 0 24 24" {...props}>
+        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+    </svg>
+);
+
+const SkipBackIcon = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
+    <svg className={`w-6 h-6 fill-current text-zinc-400 hover:text-white transition-colors ${className || ""}`} viewBox="0 0 24 24" {...props}>
+        <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+    </svg>
+);
+
+const SkipForwardIcon = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
+    <svg className={`w-6 h-6 fill-current text-zinc-400 hover:text-white transition-colors ${className || ""}`} viewBox="0 0 24 24" {...props}>
+      <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+    </svg>
+);
+
 const PlaylistIcon = () => (
   <svg
     className="w-6 h-6 text-white"
@@ -127,6 +151,11 @@ export default function ProfilePage() {
   const [recentTracks, setRecentTracks] = useState<RecentTrack[]>([]);
   const [recentLoading, setRecentLoading] = useState(true);
 
+  // --- Currently Playing State ---
+  const [currentlyPlaying, setCurrentlyPlaying] = useState<any>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playingLoading, setPlayingLoading] = useState(true);
+
   // --- Genres State ---
   const [topGenres, setTopGenres] = useState<GenreStat[]>([]);
   const [genresLoading, setGenresLoading] = useState(true);
@@ -138,18 +167,57 @@ export default function ProfilePage() {
     }
   }, [isLoading, isAuthenticated, navigate]);
 
-  // 1. Fetch Recently Played
+  // 1. Fetch Recently Played & Currently Playing
   useEffect(() => {
     if (isAuthenticated) {
       setRecentLoading(true);
+      setPlayingLoading(true);
+
+      // Fetch Recently Played
       api.spotify.getRecentlyPlayed(10)
         .then((data) => {
           if (data.items) setRecentTracks(data.items);
         })
         .catch((err) => console.error("Failed to load history", err))
         .finally(() => setRecentLoading(false));
+
+       // Fetch Currently Playing
+       fetchCurrentlyPlaying();
     }
   }, [isAuthenticated]);
+
+  const fetchCurrentlyPlaying = () => {
+    api.spotify.getCurrentlyPlaying()
+      .then((data) => {
+          if (data && data.item) {
+              setCurrentlyPlaying(data.item);
+              setIsPlaying(data.is_playing);
+          } else {
+              setCurrentlyPlaying(null);
+              setIsPlaying(false);
+          }
+      })
+      .catch((err) => console.error("Failed to load currently playing", err))
+      .finally(() => setPlayingLoading(false));
+  };
+  
+  const handleControl = async (action: "play" | "pause" | "next" | "previous") => {
+      try {
+            if (action === "play") await api.spotify.play();
+            if (action === "pause") await api.spotify.pause();
+            if (action === "next") await api.spotify.next();
+            if (action === "previous") await api.spotify.previous();
+            
+            // Optimistic update for play/pause
+            if (action === "play") setIsPlaying(true);
+            if (action === "pause") setIsPlaying(false);
+            
+            // Refresh data after a short delay to allow API to update
+            setTimeout(fetchCurrentlyPlaying, 500);
+      } catch (error) {
+          console.error("Player control failed", error);
+      }
+  };
 
   // 2. Fetch Genres
   useEffect(() => {
@@ -411,6 +479,92 @@ export default function ProfilePage() {
             )}
           </div>
         </div>
+
+        {/* --- Currently Playing --- */}
+        <div className="mb-12">
+            <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+                <PlayIcon /> Currently Playing
+            </h2>
+             {playingLoading ? (
+                <Card className="w-full bg-zinc-900/30 border border-zinc-800 p-6">
+                     <div className="flex items-center gap-4">
+                        <Skeleton className="w-20 h-20 rounded-md bg-zinc-800" />
+                        <div className="flex flex-col gap-2">
+                             <Skeleton className="w-40 h-4 rounded-md bg-zinc-800" />
+                             <Skeleton className="w-24 h-3 rounded-md bg-zinc-800" />
+                        </div>
+                     </div>
+                </Card>
+             ) : currentlyPlaying ? (
+                 <Card className="w-full bg-zinc-900/30 border border-emerald-500/30 p-6 relative overflow-hidden group">
+                     {/* Background blur effect */}
+                     <div className="absolute inset-0 bg-emerald-500/5 group-hover:bg-emerald-500/10 transition-colors duration-500"></div>
+                     
+                     <div className="relative flex flex-col md:flex-row items-center gap-6 z-10 w-full">
+                         <div className="relative w-24 h-24 flex-shrink-0 group-hover:scale-105 transition-transform duration-500">
+                             {/* Synth Glow Effect */}
+                             {isPlaying && (
+                                 <div className="absolute -inset-2 bg-gradient-to-r from-emerald-500 to-purple-600 rounded-lg opacity-75 blur-lg animate-pulse"></div>
+                             )}
+                             <Image
+                                 src={currentlyPlaying.album.image}
+                                 alt={currentlyPlaying.album.name}
+                                 className="relative object-cover w-full h-full rounded-md z-10 shadow-xl"
+                                 radius="none"
+                             />
+                         </div>
+                         
+                         <div className="flex flex-col gap-1 min-w-0 flex-grow text-center md:text-left">
+                             <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
+                                 <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
+                                     Now Playing
+                                 </span>
+                             </div>
+                             <a 
+                                 href={currentlyPlaying.external_url}
+                                 target="_blank"
+                                 rel="noopener noreferrer"
+                                 className="text-2xl font-bold text-white hover:underline truncate"
+                             >
+                                 {currentlyPlaying.name}
+                             </a>
+                             <p className="text-zinc-300 text-lg truncate">
+                                 {currentlyPlaying.artists.map((a: any) => a.name).join(", ")}
+                             </p>
+                             <p className="text-zinc-500 text-sm truncate">
+                                 {currentlyPlaying.album.name}
+                             </p>
+                         </div>
+                         
+                         {/* Controls */}
+                         <div className="flex items-center gap-4 md:mr-4">
+                             <button onClick={() => handleControl("previous")} className="p-2 hover:bg-white/10 rounded-full transition">
+                                 <SkipBackIcon />
+                             </button>
+                             
+                             <button 
+                                onClick={() => handleControl(isPlaying ? "pause" : "play")}
+                                className="w-14 h-14 bg-emerald-500 rounded-full flex items-center justify-center hover:scale-105 transition active:scale-95 text-white shadow-lg shadow-emerald-500/20"
+                             >
+                                 {isPlaying ? <PauseIcon /> : <PlayIcon className="ml-1" />}
+                             </button>
+                             
+                             <button onClick={() => handleControl("next")} className="p-2 hover:bg-white/10 rounded-full transition">
+                                <SkipForwardIcon />
+                             </button>
+                         </div>
+                     </div>
+                 </Card>
+             ) : (
+                <div className="w-full bg-zinc-900/30 border border-zinc-800 rounded-xl p-8 text-center text-zinc-500 flex flex-col items-center gap-2">
+                    <span className="p-3 bg-zinc-800 rounded-full text-white">
+                        <PlayIcon />
+                    </span>
+                    <p>Not playing anything right now.</p>
+                </div>
+             )}
+        </div>
+
 
         {/* --- Recently Played --- */}
         <div className="mb-12">

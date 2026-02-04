@@ -82,7 +82,7 @@ def handle_token_refresh(refresh_token: str):
 
 @router.get("/auth/login")
 def login():
-    scope = "user-read-private user-read-email user-top-read user-read-recently-played playlist-modify-public playlist-modify-private playlist-read-private playlist-read-collaborative"
+    scope = "user-read-private user-read-email user-top-read user-read-recently-played user-read-currently-playing user-modify-playback-state playlist-modify-public playlist-modify-private playlist-read-private playlist-read-collaborative"
     state = secrets.token_urlsafe(16)
     params = {
         "client_id": SPOTIFY_CLIENT_ID,
@@ -615,6 +615,144 @@ def get_recently_played(request: Request, limit: int = 10):
         
 
     return {"items": formatted_items}
+
+@router.get("/currently-playing")
+def get_currently_playing(request: Request):
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token: return RedirectResponse(url="/api/auth/login")
+
+    try: expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except: expires_at = 0
+
+    new_cookie_needed = False
+    
+    if datetime.now().timestamp() > expires_at:
+        token_data = handle_token_refresh(refresh_token)
+        if not token_data: return RedirectResponse(url="/api/auth/login")
+        access_token = token_data.get("access_token")
+        expires_at = datetime.now().timestamp() + (token_data.get("expires_in") or 0)
+        new_cookie_needed = True
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    
+    # "market=from_token" is often safer to ensure track linking works
+    url = f"{API_BASE_URL}/me/player/currently-playing?market=from_token"
+    
+    data = None
+    try:
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            # 204 No Content means nothing is playing
+            if resp.status == 204:
+                data = None
+            else:
+                body_text = resp.read().decode("utf-8")
+                # Sometimes body might be empty even if 200? Spotify is quirky.
+                if body_text:
+                    data = json.loads(body_text)
+                else:
+                    data = None
+
+    except urllib.error.HTTPError as he:
+        if he.code == 401: return RedirectResponse(url="/api/auth/login")
+        # 204 might come as error in some libs, but urllib usually handles status above.
+        # Just in case:
+        if he.code == 204: 
+             data = None
+        else:
+             raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+
+    # Build response
+    resp_obj = {"is_playing": False, "item": None}
+    
+    if data and data.get("item"):
+        # We have a track (or episode, but let's assume track for now or handle basic info)
+        item = data.get("item")
+        is_playing = data.get("is_playing", False)
+        
+        # Helper to safely get images
+        album_images = item.get("album", {}).get("images", [])
+        image_url = album_images[0]["url"] if album_images else None
+
+        resp_obj = {
+            "is_playing": is_playing,
+            "item": {
+                "id": item.get("id"),
+                "name": item.get("name"),
+                "artists": [{"name": a.get("name")} for a in item.get("artists", [])],
+                "album": {"name": item.get("album", {}).get("name"), "image": image_url},
+                "duration_ms": item.get("duration_ms"),
+                "progress_ms": data.get("progress_ms"),
+                "external_url": (item.get("external_urls") or {}).get("spotify")
+            }
+        }
+
+    if new_cookie_needed:
+        response = JSONResponse(resp_obj)
+        response.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        response.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return response
+
+    return resp_obj
+
+# --- Player Controls ---
+
+def _proxy_player_request(request: Request, method: str, endpoint: str):
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token: return RedirectResponse(url="/api/auth/login")
+
+    try: expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except: expires_at = 0
+
+    new_cookie_needed = False
+    
+    if datetime.now().timestamp() > expires_at:
+        token_data = handle_token_refresh(refresh_token)
+        if not token_data: return RedirectResponse(url="/api/auth/login")
+        access_token = token_data.get("access_token")
+        expires_at = datetime.now().timestamp() + (token_data.get("expires_in") or 0)
+        new_cookie_needed = True
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    url = f"{API_BASE_URL}/me/player/{endpoint}"
+    
+    try:
+        req = urllib.request.Request(url, headers=headers, method=method)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            # 204 No Content is expected for these calls
+            pass
+    except urllib.error.HTTPError as he:
+        if he.code == 401: return RedirectResponse(url="/api/auth/login")
+        # 403 usually means premium required or scope missing, or no active device
+        raise HTTPException(status_code=he.code, detail=f"Spotify Error: {he}")
+
+    resp = JSONResponse({"success": True})
+    if new_cookie_needed:
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+    return resp
+
+@router.put("/player/play")
+def play_playback(request: Request):
+    return _proxy_player_request(request, "PUT", "play")
+
+@router.put("/player/pause")
+def pause_playback(request: Request):
+    return _proxy_player_request(request, "PUT", "pause")
+
+@router.post("/player/next")
+def next_track(request: Request):
+    return _proxy_player_request(request, "POST", "next")
+
+@router.post("/player/previous")
+def previous_track(request: Request):
+    return _proxy_player_request(request, "POST", "previous")
 
 @router.get("/search")
 def search_spotify(request: Request, q: str, type: str = "track", limit: int = 20):

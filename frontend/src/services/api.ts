@@ -96,6 +96,15 @@ export const api = {
     getRecentlyPlayed: (limit: number = 10) => {
         return fetchJson<{ items: any[] }>(`${BASE_URL}/spotify/recently-played?limit=${limit}`);
     },
+
+    getCurrentlyPlaying: () => {
+        return fetchJson<{ is_playing: boolean; item?: any }>(`${BASE_URL}/spotify/currently-playing`);
+    },
+
+    play: () => fetchJson(`${BASE_URL}/spotify/player/play`, { method: "PUT" }),
+    pause: () => fetchJson(`${BASE_URL}/spotify/player/pause`, { method: "PUT" }),
+    next: () => fetchJson(`${BASE_URL}/spotify/player/next`, { method: "POST" }),
+    previous: () => fetchJson(`${BASE_URL}/spotify/player/previous`, { method: "POST" }),
     
     getMe: () => fetchJson<any>(`${BASE_URL}/spotify/me`),
     
