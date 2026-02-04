@@ -40,14 +40,24 @@ export default function SearchPage() {
   const [hasSearched, setHasSearched] = useState(false);
   const [playlists, setPlaylists] = useState<{id: string, name: string}[]>([]);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     // Fetch playlists to check if user has any to add tracks to
     api.spotify.getPlaylists().then(data => {
         setPlaylists(data.playlists);
-    }).catch(() => {
-        // Silent fail or just empty playlists
+        setIsLoggedIn(true);
+    }).catch((err) => {
+        if (err instanceof AuthError) {
+            setIsLoggedIn(false);
+        } else {
+            // If it's another error, we might still be logged in, but failed to fetch.
+            // For safety/UI clarity, if we can't get playlists, we can assume logged in state is uncertain or just treat as logged in but empty/error.
+            // But usually this catch block means we failed. 
+            // Let's rely on AuthError for explicit "not logged in".
+            setIsLoggedIn(true); 
+        }
     });
   }, []);
 
@@ -244,10 +254,18 @@ export default function SearchPage() {
                                                 </Tooltip>
                                                 <DropdownMenu 
                                                     aria-label="Add to playlist"
-                                                    items={playlists.length > 0 ? playlists : [{id: "login", name: "Log in to add tracks"}]}
+                                                    items={
+                                                        !isLoggedIn 
+                                                            ? [{id: "login", name: "Log in to add tracks"}]
+                                                            : playlists.length > 0 
+                                                                ? playlists 
+                                                                : [{id: "empty", name: "No playlists found"}]
+                                                    }
                                                     onAction={(key) => {
                                                         if (key === "login") {
                                                             navigate("/login");
+                                                        } else if (key === "empty") {
+                                                            // Do nothing
                                                         } else {
                                                             handleAddToPlaylist(key as string, item.uri);
                                                         }
@@ -256,7 +274,17 @@ export default function SearchPage() {
                                                     variant="flat"
                                                 >
                                                     {(item) => (
-                                                        <DropdownItem key={item.id} className={item.id === "login" ? "text-green-500 font-bold" : "text-black"}>
+                                                        <DropdownItem 
+                                                            key={item.id} 
+                                                            className={
+                                                                item.id === "login" 
+                                                                    ? "text-green-500 font-bold" 
+                                                                    : item.id === "empty"
+                                                                        ? "text-zinc-500 cursor-default"
+                                                                        : "text-black"
+                                                            }
+                                                            isReadOnly={item.id === "empty"}
+                                                        >
                                                             {item.name}
                                                         </DropdownItem>
                                                     )}
