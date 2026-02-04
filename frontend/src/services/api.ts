@@ -70,6 +70,14 @@ export const api = {
   },
   spotify: {
     getPlaylists: () => fetchJson<{ playlists: any[] }>(`${BASE_URL}/spotify/playlists`, { redirect: "manual" }),
+    createPlaylist: (name: string, description?: string, publicPlaylist?: boolean) => {
+        return fetchJson<any>(`${BASE_URL}/spotify/playlists`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, description, public: publicPlaylist }),
+            redirect: "manual"
+        });
+    },
     getPlaylist: (id: string) => fetchJson<any>(`${BASE_URL}/spotify/playlists/${id}`),
     
     // time_range: "short_term" | "medium_term" | "long_term"

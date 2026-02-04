@@ -8,9 +8,18 @@ import {
   Button,
   Skeleton,
   Chip,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Input,
+  Textarea,
+  Switch,
+  useDisclosure,
 } from "@heroui/react";
 
-import { ExternalLink, Music, Library } from "lucide-react";
+import { ExternalLink, Music, Library, Plus } from "lucide-react";
 
 interface Playlist {
   id: string;
@@ -38,7 +47,15 @@ export default function PlaylistsPage() {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
+  // Create Playlist State
+  const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const [newPlaylistName, setNewPlaylistName] = useState("");
+  const [newPlaylistDesc, setNewPlaylistDesc] = useState("");
+  const [isPublic, setIsPublic] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  // Fetch Playlists Function
+  const fetchPlaylists = () => {
     setLoading(true);
     api.spotify.getPlaylists()
       .then((data) => {
@@ -54,7 +71,31 @@ export default function PlaylistsPage() {
         }
       })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchPlaylists();
   }, [navigate]);
+
+  const handleCreatePlaylist = async (onClose: () => void) => {
+    if (!newPlaylistName.trim()) return;
+
+    setCreating(true);
+    try {
+        await api.spotify.createPlaylist(newPlaylistName, newPlaylistDesc, isPublic);
+        fetchPlaylists(); // Refresh list
+        onClose();
+        // Reset form
+        setNewPlaylistName("");
+        setNewPlaylistDesc("");
+        setIsPublic(false);
+    } catch (err: any) {
+        console.error("Failed to create playlist", err);
+        // Optional: show toast or error in modal
+    } finally {
+        setCreating(false);
+    }
+  };
 
   const renderSkeletons = () =>
     Array(8)
@@ -112,8 +153,17 @@ export default function PlaylistsPage() {
             </p>
           </div>
 
-          <div className="text-zinc-500 text-sm font-medium">
-            {loading ? "Syncing..." : `${playlists.length} Playlists Found`}
+          <div className="flex items-center gap-4">
+            <div className="text-zinc-500 text-sm font-medium">
+                {loading ? "Syncing..." : `${playlists.length} Playlists Found`}
+            </div>
+            <Button 
+                endContent={<Plus size={16} />}
+                color="primary"
+                onPress={onOpen}
+            >
+                Create Playlist
+            </Button>
           </div>
         </div>
 
@@ -189,6 +239,72 @@ export default function PlaylistsPage() {
             ))
           )}
         </div>
+
+        {/* Create Playlist Modal */}
+        <Modal 
+            isOpen={isOpen} 
+            onOpenChange={onOpenChange}
+            backdrop="blur"
+            classNames={{
+                base: "bg-zinc-900 border border-white/10 text-white",
+                header: "border-b border-white/10",
+                footer: "border-t border-white/10",
+                closeButton: "hover:bg-white/10 active:bg-white/20",
+            }}
+        >
+            <ModalContent>
+                {(onClose) => (
+                    <>
+                        <ModalHeader className="flex flex-col gap-1">Create New Playlist</ModalHeader>
+                        <ModalBody className="py-6">
+                            <Input
+                                autoFocus
+                                label="Name"
+                                placeholder="My Awesome Playlist"
+                                variant="bordered"
+                                value={newPlaylistName}
+                                onValueChange={setNewPlaylistName}
+                                classNames={{
+                                    inputWrapper: "border-white/20 data-[hover=true]:border-white/40 group-data-[focus=true]:border-primary",
+                                }}
+                            />
+                            <Textarea
+                                label="Description"
+                                placeholder="Give your playlist a catchy description..."
+                                variant="bordered"
+                                value={newPlaylistDesc}
+                                onValueChange={setNewPlaylistDesc}
+                                classNames={{
+                                    inputWrapper: "border-white/20 data-[hover=true]:border-white/40 group-data-[focus=true]:border-primary",
+                                }}
+                            />
+                            <div className="flex justify-between items-center px-1">
+                                <span className="text-sm text-zinc-400">Public Playlist</span>
+                                <Switch 
+                                    isSelected={isPublic} 
+                                    onValueChange={setIsPublic}
+                                    size="sm"
+                                    color="success"
+                                />
+                            </div>
+                        </ModalBody>
+                        <ModalFooter>
+                            <Button color="danger" variant="light" onPress={onClose}>
+                                Cancel
+                            </Button>
+                            <Button 
+                                color="primary" 
+                                onPress={() => handleCreatePlaylist(onClose)}
+                                isLoading={creating}
+                                isDisabled={!newPlaylistName.trim()}
+                            >
+                                Create
+                            </Button>
+                        </ModalFooter>
+                    </>
+                )}
+            </ModalContent>
+        </Modal>
       </main>
     </div>
   );

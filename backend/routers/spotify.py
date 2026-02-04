@@ -323,6 +323,68 @@ def get_playlist_details(playlist_id: str, request: Request):
         "tracks": {"total": tracks_data.get("total"), "items": formatted_tracks}
     }
 
+class CreatePlaylistRequest(BaseModel):
+    name: str
+    description: str = ""
+    public: bool = False
+
+@router.post("/playlists")
+def create_playlist(body: CreatePlaylistRequest, request: Request):
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token: return RedirectResponse(url="/api/auth/login")
+
+    try: expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except: expires_at = 0
+
+    new_cookie_needed = False
+    
+    if datetime.now().timestamp() > expires_at:
+        token_data = handle_token_refresh(refresh_token)
+        if not token_data: return RedirectResponse(url="/api/auth/login")
+        access_token = token_data.get("access_token")
+        expires_at = datetime.now().timestamp() + (token_data.get("expires_in") or 0)
+        new_cookie_needed = True
+
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+    
+    # 1. Get User ID
+    user_url = f"{API_BASE_URL}/me"
+    try:
+        req = urllib.request.Request(user_url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            user_data = json.loads(resp.read().decode("utf-8"))
+            user_id = user_data.get("id")
+    except urllib.error.HTTPError as he:
+        if he.code == 401: return RedirectResponse(url="/api/auth/login")
+        raise HTTPException(status_code=502, detail=f"Failed to get user ID: {he}")
+
+    # 2. Create Playlist
+    url = f"{API_BASE_URL}/users/{user_id}/playlists"
+    payload = {
+        "name": body.name,
+        "description": body.description,
+        "public": body.public
+    }
+    
+    try:
+        data_bytes = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=data_bytes, headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            new_playlist = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as he:
+        if he.code == 401: return RedirectResponse(url="/api/auth/login")
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+
+    resp = JSONResponse(new_playlist)
+    if new_cookie_needed:
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+    
+    return resp
+
 class AddTracksRequest(BaseModel):
     uris: list[str]
 
