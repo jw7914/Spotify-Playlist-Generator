@@ -286,20 +286,28 @@ export default function SearchPage() {
                         key={item.id} 
                         isPressable 
                         onPress={() => window.open(item.external_urls.spotify, "_blank")}
-                        className="bg-zinc-900/40 border border-white/5 hover:bg-zinc-800 transition-all p-4"
+                        className={`transition-all p-4 ${
+                            type === 'artist' 
+                            ? "bg-transparent border-none hover:bg-zinc-900/50 shadow-none" 
+                            : "bg-zinc-900/40 border border-white/5 hover:bg-zinc-800"
+                        }`}
                     >
-                        <CardBody className="overflow-visible p-0 flex flex-col gap-3">
+                        <CardBody className={`overflow-visible p-0 flex flex-col gap-3 ${type === 'artist' ? 'items-center text-center' : ''}`}>
                              <Image 
                                 src={getImageUrl(item)}
                                 alt={item.name}
-                                className="w-full aspect-square object-cover rounded-lg"
-                                radius="lg"
-                                width="100%"
+                                className={`object-cover ${
+                                    type === 'artist' 
+                                    ? "w-40 h-40 rounded-full" 
+                                    : "w-full aspect-square rounded-lg"
+                                }`}
+                                radius={type === 'artist' ? "full" : "lg"}
+                                width={type === 'artist' ? "160px" : "100%"}
                              />
-                             <div className="flex flex-col gap-1 text-left relative group">
-                                <div className="flex justify-between items-start">
-                                    <h3 className="font-bold text-white text-md line-clamp-1 pr-6" title={item.name}>{item.name}</h3>
-                                    {item.uri.includes(":track:") && (
+                             <div className={`flex flex-col gap-1 relative group ${type === 'artist' ? 'items-center w-full' : 'text-left'}`}>
+                                <div className={`flex ${type === 'artist' ? 'justify-center w-full' : 'justify-between items-start'}`}>
+                                    <h3 className="font-bold text-white text-md line-clamp-1" title={item.name}>{item.name}</h3>
+                                    {item.uri.includes(":track:") && type !== 'artist' && (
                                         <div className="absolute right-0 top-0" onClick={(e) => e.stopPropagation()}>
                                             <Tooltip content="Add to playlist" closeDelay={0}>
                                                 <Button 
