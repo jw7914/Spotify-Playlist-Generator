@@ -211,7 +211,7 @@ export default function PlaylistsPage() {
             </div>
             <Button 
                 endContent={<Plus size={16} />}
-                color="primary"
+                color="success"
                 onPress={onOpen}
             >
                 Create Playlist
@@ -368,7 +368,7 @@ export default function PlaylistsPage() {
                                 Cancel
                             </Button>
                             <Button 
-                                color="primary" 
+                                color="success" 
                                 onPress={() => handleCreatePlaylist(onClose)}
                                 isLoading={creating}
                                 isDisabled={!newPlaylistName.trim()}
