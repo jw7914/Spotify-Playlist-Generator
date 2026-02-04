@@ -52,7 +52,7 @@ export default function PlaylistsPage() {
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const [newPlaylistName, setNewPlaylistName] = useState("");
   const [newPlaylistDesc, setNewPlaylistDesc] = useState("");
-  const [isPublic, setIsPublic] = useState(true);
+  const [isPublic, setIsPublic] = useState(false);
   const [creating, setCreating] = useState(false);
 
   // Delete Playlist State
