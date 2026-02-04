@@ -357,6 +357,7 @@ export default function SearchPage() {
         onOpenChange={onOpenChange}
         className="dark text-white bg-zinc-900 border border-zinc-800"
         backdrop="blur"
+        scrollBehavior="inside"
       >
         <ModalContent>
           {(onClose) => (
@@ -382,9 +383,9 @@ export default function SearchPage() {
                             </Button>
                         </div>
                     ) : (
-                        <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto">
+                        <div className="flex flex-col gap-2">
                             <Button 
-                                className="justify-start bg-green-500/10 text-green-500 hover:bg-green-500/20 font-bold mb-2"
+                                className="justify-start bg-green-500/10 text-green-500 hover:bg-green-500/20 font-bold mb-2 shrink-0"
                                 onPress={() => setModalView("create")}
                             >
                                 <Plus size={16} className="mr-2" />
@@ -395,7 +396,7 @@ export default function SearchPage() {
                                 playlists.map(playlist => (
                                     <Button
                                         key={playlist.id}
-                                        className="justify-start bg-zinc-800 hover:bg-zinc-700 text-white"
+                                        className="justify-start bg-zinc-800 hover:bg-zinc-700 text-white shrink-0"
                                         onPress={() => {
                                             if(selectedTrackUri) {
                                                 handleAddToPlaylist(playlist.id, selectedTrackUri);
