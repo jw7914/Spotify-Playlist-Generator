@@ -8,7 +8,6 @@ import {
   Button,
   Chip,
   Skeleton,
-  CircularProgress,
   Select,
   SelectItem,
 } from "@heroui/react";
@@ -16,7 +15,6 @@ import {
   Trophy,
   ExternalLink,
   Mic2,
-  TrendingUp,
   Music,
   ListFilter,
   CalendarClock,
@@ -268,15 +266,15 @@ export default function TopArtistsPage() {
                     >
                       Listen on Spotify
                     </Button>
-                    <div className="flex items-center gap-3 text-zinc-300 px-4 py-2 rounded-full bg-white/5 border border-white/5 backdrop-blur-sm">
-                      <TrendingUp size={20} className="text-green-400" />
-                      <div className="flex flex-col text-left leading-none">
-                        <span className="text-sm font-bold text-white">
-                          {featured?.popularity}%
+                    <div className="flex flex-col gap-1 pl-4 border-l border-white/10">
+                      <span className="text-xs uppercase tracking-widest text-zinc-400 font-bold">
+                        Popularity
+                      </span>
+                      <div className="flex items-baseline gap-1">
+                        <span className={`text-3xl font-black tracking-tighter ${featured?.popularity && featured.popularity > 80 ? 'text-green-400' : 'text-white'}`}>
+                          {featured?.popularity ?? 0}
                         </span>
-                        <span className="text-[10px] uppercase tracking-wider text-zinc-400">
-                          Global Popularity
-                        </span>
+                        <span className="text-sm text-zinc-500 font-bold">/ 100</span>
                       </div>
                     </div>
                   </div>
@@ -338,31 +336,19 @@ export default function TopArtistsPage() {
 
                     <CardFooter className="justify-center pt-0 pb-6">
                       {artist.popularity !== undefined && (
-                        <div
-                          className="flex items-center gap-2"
-                          title={`Popularity Score: ${artist.popularity}`}
-                        >
-                          <CircularProgress
-                            aria-label="Popularity"
-                            size="sm"
-                            value={artist.popularity}
-                            color={
-                              artist.popularity > 80
-                                ? "success"
-                                : artist.popularity > 50
-                                  ? "warning"
-                                  : "default"
-                            }
-                            showValueLabel={false}
-                            classNames={{
-                              svg: "w-5 h-5",
-                              indicator: "stroke-[3px]",
-                              track: "stroke-[3px] stroke-zinc-600",
-                            }}
-                          />
-                          <span className="text-tiny text-zinc-300 font-medium">
-                            {artist.popularity}% Pop
-                          </span>
+                        <div className="w-full px-4 flex flex-col gap-1.5" title={`Popularity Score: ${artist.popularity}`}>
+                          <div className="flex justify-between items-end">
+                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Popularity Meter</span>
+                            <span className={`text-xs font-bold ${artist.popularity > 80 ? 'text-green-400' : artist.popularity > 60 ? 'text-yellow-400' : 'text-zinc-400'}`}>
+                              {artist.popularity}%
+                            </span>
+                          </div>
+                          <div className="h-1.5 w-full bg-zinc-700/50 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full ${artist.popularity > 80 ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : artist.popularity > 60 ? 'bg-yellow-500' : 'bg-zinc-500'} transition-all duration-1000 ease-out`}
+                              style={{ width: `${artist.popularity}%` }}
+                            />
+                          </div>
                         </div>
                       )}
                     </CardFooter>
