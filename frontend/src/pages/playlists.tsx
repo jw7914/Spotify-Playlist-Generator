@@ -124,7 +124,7 @@ export default function PlaylistsPage() {
           ) : playlists.length === 0 ? (
             <div className="col-span-full flex flex-col items-center justify-center py-20 text-zinc-500">
               <Music size={64} className="mb-4 opacity-20" />
-              <p>No playlists found on your Spotify account.</p>
+              <p>No public playlists found on your Spotify account.</p>
             </div>
           ) : (
             playlists.map((playlist) => (

@@ -46,6 +46,7 @@ export default function SearchPage() {
   const navigate = useNavigate();
   const {isOpen, onOpen, onOpenChange} = useDisclosure();
   const [selectedTrackUri, setSelectedTrackUri] = useState<string | null>(null);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   useEffect(() => {
     // Fetch playlists to check if user has any to add tracks to
@@ -107,7 +108,8 @@ export default function SearchPage() {
       setResults(items);
     } catch (err: any) {
         if (err instanceof AuthError) {
-             navigate("/login", { replace: true });
+             setShowLoginPrompt(true);
+             setResults([]); 
         } else {
              setError(err.message || "Search failed");
         }
@@ -161,6 +163,7 @@ export default function SearchPage() {
                     onValueChange={(val) => {
                         setQuery(val);
                         setHasSearched(false);
+                        setShowLoginPrompt(false);
                     }}
                     onKeyDown={handleKeyDown}
                     size="lg"
@@ -254,11 +257,7 @@ export default function SearchPage() {
                                                     className="text-white hover:text-green-500 min-w-0 w-6 h-6 data-[hover=true]:bg-transparent"
                                                     onPress={() => {
                                                         setSelectedTrackUri(item.uri);
-                                                        if (!isLoggedIn) {
-                                                            navigate("/login");
-                                                        } else {
-                                                            onOpen();
-                                                        }
+                                                        onOpen();
                                                     }}
                                                 >
                                                     <Plus size={16} />
@@ -272,6 +271,18 @@ export default function SearchPage() {
                         </CardBody>
                     </Card>
                 ))
+            ) : showLoginPrompt ? (
+                <div className="col-span-full flex flex-col items-center justify-center py-20 gap-4 text-center">
+                    <p className="text-zinc-300 text-lg">Please log in to search Spotify</p>
+                    <Button 
+                        color="success" 
+                        variant="flat"
+                        onPress={() => navigate("/login")}
+                        className="font-bold"
+                    >
+                        Log in with Spotify
+                    </Button>
+                </div>
             ) : results.length === 0 && hasSearched && !loading && !error && (
                  <div className="col-span-full text-center py-20 text-zinc-300">
                     No results found for "{query}".
@@ -292,7 +303,22 @@ export default function SearchPage() {
             <>
               <ModalHeader className="flex flex-col gap-1">Add to Playlist</ModalHeader>
               <ModalBody>
-                {playlists.length > 0 ? (
+                {!isLoggedIn ? (
+                    <div className="flex flex-col items-center justify-center py-6 gap-4 text-center">
+                        <p className="text-zinc-300">You need to be logged in to add tracks to a playlist.</p>
+                        <Button 
+                            color="success" 
+                            variant="flat"
+                            onPress={() => {
+                                onClose();
+                                navigate("/login");
+                            }}
+                            className="font-bold"
+                        >
+                            Log in with Spotify
+                        </Button>
+                    </div>
+                ) : playlists.length > 0 ? (
                     <div className="flex flex-col gap-2">
                         {playlists.map(playlist => (
                             <Button
