@@ -465,20 +465,6 @@ export default function ProfilePage() {
             </div>
           </Card>
         </div>
-
-        {/* --- Footer --- */}
-        <div className="border-t border-zinc-800 pt-8 flex justify-between items-center">
-          <div>
-            <h3 className="text-lg font-bold text-white">Account Controls</h3>
-            <p className="text-zinc-500 text-sm">Manage your session</p>
-          </div>
-          <button
-            onClick={() => navigate("/logout")}
-            className="px-6 py-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition font-semibold text-sm"
-          >
-            Sign Out
-          </button>
-        </div>
       </div>
     </div>
   );
