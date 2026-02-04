@@ -8,11 +8,13 @@ import {
   CardBody,
   Image,
   Skeleton,
-  Dropdown,
-  DropdownTrigger,
-  DropdownMenu,
-  DropdownItem,
   Tooltip,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  useDisclosure,
 } from "@heroui/react";
 import { Search, Music, Disc, User as UserIcon, Plus, CheckCircle, XCircle } from "lucide-react";
 import { api, AuthError } from "../services/api";
@@ -42,6 +44,8 @@ export default function SearchPage() {
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const navigate = useNavigate();
+  const {isOpen, onOpen, onOpenChange} = useDisclosure();
+  const [selectedTrackUri, setSelectedTrackUri] = useState<string | null>(null);
 
   useEffect(() => {
     // Fetch playlists to check if user has any to add tracks to
@@ -242,54 +246,24 @@ export default function SearchPage() {
                                     <h3 className="font-bold text-white text-md line-clamp-1 pr-6" title={item.name}>{item.name}</h3>
                                     {item.uri.includes(":track:") && (
                                         <div className="absolute right-0 top-0" onClick={(e) => e.stopPropagation()}>
-                                            <Dropdown placement="bottom-end">
-                                                <Tooltip content="Add to playlist" closeDelay={0}>
-                                                    <div className="inline-block">
-                                                        <DropdownTrigger>
-                                                            <Button isIconOnly size="sm" variant="light" className="text-white hover:text-green-500 min-w-0 w-6 h-6 data-[hover=true]:bg-transparent">
-                                                                <Plus size={16} />
-                                                            </Button>
-                                                        </DropdownTrigger>
-                                                    </div>
-                                                </Tooltip>
-                                                <DropdownMenu 
-                                                    aria-label="Add to playlist"
-                                                    items={
-                                                        !isLoggedIn 
-                                                            ? [{id: "login", name: "Log in to add tracks"}]
-                                                            : playlists.length > 0 
-                                                                ? playlists 
-                                                                : [{id: "empty", name: "No playlists found"}]
-                                                    }
-                                                    onAction={(key) => {
-                                                        if (key === "login") {
+                                            <Tooltip content="Add to playlist" closeDelay={0}>
+                                                <Button 
+                                                    isIconOnly 
+                                                    size="sm" 
+                                                    variant="light" 
+                                                    className="text-white hover:text-green-500 min-w-0 w-6 h-6 data-[hover=true]:bg-transparent"
+                                                    onPress={() => {
+                                                        setSelectedTrackUri(item.uri);
+                                                        if (!isLoggedIn) {
                                                             navigate("/login");
-                                                        } else if (key === "empty") {
-                                                            // Do nothing
                                                         } else {
-                                                            handleAddToPlaylist(key as string, item.uri);
+                                                            onOpen();
                                                         }
                                                     }}
-                                                    className="max-h-64 overflow-y-auto"
-                                                    variant="flat"
                                                 >
-                                                    {(item) => (
-                                                        <DropdownItem 
-                                                            key={item.id} 
-                                                            className={
-                                                                item.id === "login" 
-                                                                    ? "text-green-500 font-bold" 
-                                                                    : item.id === "empty"
-                                                                        ? "text-zinc-500 cursor-default"
-                                                                        : "text-black"
-                                                            }
-                                                            isReadOnly={item.id === "empty"}
-                                                        >
-                                                            {item.name}
-                                                        </DropdownItem>
-                                                    )}
-                                                </DropdownMenu>
-                                            </Dropdown>
+                                                    <Plus size={16} />
+                                                </Button>
+                                            </Tooltip>
                                         </div>
                                     )}
                                 </div>
@@ -305,6 +279,52 @@ export default function SearchPage() {
             )}
         </div>
       </div>
+      
+      {/* Playlist Modal */}
+      <Modal 
+        isOpen={isOpen} 
+        onOpenChange={onOpenChange}
+        className="dark text-white bg-zinc-900 border border-zinc-800"
+        backdrop="blur"
+      >
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">Add to Playlist</ModalHeader>
+              <ModalBody>
+                {playlists.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                        {playlists.map(playlist => (
+                            <Button
+                                key={playlist.id}
+                                className="justify-start bg-zinc-800 hover:bg-zinc-700 text-white"
+                                onPress={() => {
+                                    if(selectedTrackUri) {
+                                        handleAddToPlaylist(playlist.id, selectedTrackUri);
+                                        onClose();
+                                    }
+                                }}
+                            >
+                                <Music size={16} className="mr-2" />
+                                {playlist.name}
+                            </Button>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-zinc-400 text-center py-4">
+                        No playlists found. Create one first!
+                    </div>
+                )}
+              </ModalBody>
+              <ModalFooter>
+                <Button color="danger" variant="light" onPress={onClose}>
+                  Cancel
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </div>
   );
 }
