@@ -19,19 +19,16 @@ REDIRECT_URI = os.getenv("REDIRECT_URI") or "http://127.0.0.1:8000/api/spotify/a
 router = APIRouter()
 
 # --- App Token Implementation (Client Credentials) ---
-_app_token = None
-_app_token_expires = 0
+_cached_token = {"token": None, "expires_at": 0}
 
 def get_app_token():
-    global _app_token, _app_token_expires
     now = datetime.now().timestamp()
-    
-    # Return cached if valid (buffer 60s)
-    if _app_token and now < _app_token_expires - 60:
-        return _app_token
+
+    if _cached_token["token"] and now < _cached_token["expires_at"] - 60:
+        return _cached_token["token"]
         
-    # Request new token
     token_url = "https://accounts.spotify.com/api/token"
+    
     auth_str = f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}"
     auth_b64 = base64.b64encode(auth_str.encode()).decode()
     
@@ -39,18 +36,17 @@ def get_app_token():
         "Authorization": f"Basic {auth_b64}",
         "Content-Type": "application/x-www-form-urlencoded"
     }
-    data = {"grant_type": "client_credentials"}
+    data = urllib.parse.urlencode({"grant_type": "client_credentials"}).encode()
     
     try:
-        encoded = urllib.parse.urlencode(data).encode()
-        req = urllib.request.Request(token_url, data=encoded, headers=headers, method="POST")
+        req = urllib.request.Request(token_url, data=data, headers=headers, method="POST")
         with urllib.request.urlopen(req, timeout=10) as resp:
             body = json.loads(resp.read().decode())
-            _app_token = body["access_token"]
-            _app_token_expires = now + body["expires_in"]
-            return _app_token
+            _cached_token["token"] = body["access_token"]
+            _cached_token["expires_at"] = now + body["expires_in"]
+            return _cached_token["token"]
     except Exception as e:
-        print(f"App token error: {e}")
+        print(f"Failed to fetch Spotify token: {e}")
         return None
 
 # --- Helper: Token Refresh Logic ---
