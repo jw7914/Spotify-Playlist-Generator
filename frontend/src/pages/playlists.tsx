@@ -19,7 +19,7 @@ import {
   useDisclosure,
 } from "@heroui/react";
 
-import { ExternalLink, Music, Library, Plus } from "lucide-react";
+import { ExternalLink, Music, Library, Plus, Trash2, CheckCircle, XCircle } from "lucide-react";
 
 interface Playlist {
   id: string;
@@ -53,6 +53,25 @@ export default function PlaylistsPage() {
   const [newPlaylistDesc, setNewPlaylistDesc] = useState("");
   const [isPublic, setIsPublic] = useState(false);
   const [creating, setCreating] = useState(false);
+
+  // Delete Playlist State
+  const { 
+    isOpen: isDeleteOpen, 
+    onOpen: onDeleteOpen, 
+    onOpenChange: onDeleteOpenChange 
+  } = useDisclosure();
+  const [playlistToDelete, setPlaylistToDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  
+  // Toast State
+  const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+
+  useEffect(() => {
+      if (toast) {
+          const timer = setTimeout(() => setToast(null), 3000);
+          return () => clearTimeout(timer);
+      }
+  }, [toast]);
 
   // Fetch Playlists Function
   const fetchPlaylists = () => {
@@ -89,12 +108,36 @@ export default function PlaylistsPage() {
         setNewPlaylistName("");
         setNewPlaylistDesc("");
         setIsPublic(false);
+        setToast({ message: "Playlist created successfully!", type: "success" });
     } catch (err: any) {
         console.error("Failed to create playlist", err);
-        // Optional: show toast or error in modal
+        setToast({ message: "Failed to create playlist.", type: "error" });
     } finally {
         setCreating(false);
     }
+  };
+
+  const confirmDelete = async (onClose: () => void) => {
+    if (!playlistToDelete) return;
+
+    setDeleting(true);
+    try {
+        await api.spotify.deletePlaylist(playlistToDelete);
+        fetchPlaylists();
+        onClose();
+        setPlaylistToDelete(null);
+        setToast({ message: "Playlist deleted!", type: "success" });
+    } catch (err) {
+        console.error("Failed to delete playlist", err);
+        setToast({ message: "Failed to delete playlist.", type: "error" });
+    } finally {
+        setDeleting(false);
+    }
+  };
+
+  const promptDelete = (id: string) => {
+      setPlaylistToDelete(id);
+      onDeleteOpen();
   };
 
   const renderSkeletons = () =>
@@ -137,6 +180,14 @@ export default function PlaylistsPage() {
 
   return (
     <div className="min-h-screen bg-black text-foreground">
+      {/* Toast Notification */}
+      {toast && (
+          <div className={`fixed bottom-8 right-8 z-50 px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 border ${toast.type === "success" ? "bg-zinc-900 border-green-500/50 text-white" : "bg-red-900/90 border-red-500/50 text-white"} animate-in fade-in slide-in-from-bottom-4 duration-300`}>
+              {toast.type === "success" ? <CheckCircle className="text-green-500" size={24} /> : <XCircle className="text-red-500" size={24} />}
+              <span className="font-medium">{toast.message}</span>
+          </div>
+      )}
+
       <main className="max-w-7xl mx-auto px-6 py-12">
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-end mb-10 gap-4">
@@ -234,6 +285,16 @@ export default function PlaylistsPage() {
                   >
                     {playlist.tracks_total} Tracks
                   </Chip>
+                  <Button
+                    size="sm"
+                    color="danger"
+                    variant="light"
+                    isIconOnly
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    onPress={() => promptDelete(playlist.id)}
+                  >
+                    <Trash2 size={16} />
+                  </Button>
                 </CardFooter>
               </Card>
             ))
@@ -299,6 +360,44 @@ export default function PlaylistsPage() {
                                 isDisabled={!newPlaylistName.trim()}
                             >
                                 Create
+                            </Button>
+                        </ModalFooter>
+                    </>
+                )}
+            </ModalContent>
+        </Modal>
+
+        {/* Delete Confirmation Modal */}
+        <Modal 
+            isOpen={isDeleteOpen} 
+            onOpenChange={onDeleteOpenChange}
+            backdrop="blur"
+            classNames={{
+                base: "bg-zinc-900 border border-white/10 text-white",
+                header: "border-b border-white/10",
+                footer: "border-t border-white/10",
+                closeButton: "hover:bg-white/10 active:bg-white/20",
+            }}
+        >
+            <ModalContent>
+                {(onClose) => (
+                    <>
+                        <ModalHeader className="flex flex-col gap-1">Confirm Deletion</ModalHeader>
+                        <ModalBody className="py-6">
+                            <p className="text-zinc-300">
+                                Are you sure you want to delete this playlist? This action cannot be undone.
+                            </p>
+                        </ModalBody>
+                        <ModalFooter>
+                            <Button variant="light" onPress={onClose} className="text-white hover:bg-white/10">
+                                Cancel
+                            </Button>
+                            <Button 
+                                color="danger" 
+                                onPress={() => confirmDelete(onClose)}
+                                isLoading={deleting}
+                            >
+                                Delete
                             </Button>
                         </ModalFooter>
                     </>

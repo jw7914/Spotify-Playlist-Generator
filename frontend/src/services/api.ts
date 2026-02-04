@@ -78,6 +78,12 @@ export const api = {
             redirect: "manual"
         });
     },
+    deletePlaylist: (playlistId: string) => {
+        return fetchJson<any>(`${BASE_URL}/spotify/playlists/${playlistId}`, {
+            method: "DELETE",
+            redirect: "manual"
+        });
+    },
     getPlaylist: (id: string) => fetchJson<any>(`${BASE_URL}/spotify/playlists/${id}`),
     
     // time_range: "short_term" | "medium_term" | "long_term"
