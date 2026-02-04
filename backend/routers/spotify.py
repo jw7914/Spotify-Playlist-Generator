@@ -86,7 +86,7 @@ def handle_token_refresh(refresh_token: str):
 
 @router.get("/auth/login")
 def login():
-    scope = "user-read-private user-read-email user-top-read user-read-recently-played playlist-modify-public playlist-modify-private"
+    scope = "user-read-private user-read-email user-top-read user-read-recently-played playlist-modify-public playlist-modify-private playlist-read-private playlist-read-collaborative"
     state = secrets.token_urlsafe(16)
     params = {
         "client_id": SPOTIFY_CLIENT_ID,
