@@ -49,9 +49,14 @@ export default function SearchPage() {
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   useEffect(() => {
-    // Fetch playlists to check if user has any to add tracks to
-    api.spotify.getPlaylists().then(data => {
-        setPlaylists(data.playlists);
+    // Fetch user profile and playlists
+    Promise.all([
+      api.spotify.getMe(),
+      api.spotify.getPlaylists()
+    ]).then(([userData, playlistData]) => {
+        const userId = userData.user.id;
+        const ownedPlaylists = playlistData.playlists.filter((p: any) => p.owner_id === userId);
+        setPlaylists(ownedPlaylists);
         setIsLoggedIn(true);
     }).catch((err) => {
         if (err instanceof AuthError) {

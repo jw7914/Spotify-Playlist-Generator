@@ -241,6 +241,7 @@ def get_playlists(request: Request):
             "id": p.get("id"),
             "name": p.get("name"),
             "owner": (p.get("owner") or {}).get("display_name") or (p.get("owner") or {}).get("id"),
+            "owner_id": (p.get("owner") or {}).get("id"),
             "tracks_total": (p.get("tracks") or {}).get("total"),
             "images": p.get("images", []),
             "external_url": (p.get("external_urls") or {}).get("spotify"),
