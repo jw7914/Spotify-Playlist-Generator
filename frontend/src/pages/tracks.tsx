@@ -15,8 +15,6 @@ import {
 import {
   ArrowLeft,
   Clock,
-  MoreHorizontal,
-  Play,
   ExternalLink,
 } from "lucide-react";
 
@@ -62,7 +60,7 @@ interface PlaylistDetails {
     items: PlaylistItem[];
     total: number;
   };
-  external_urls: { spotify: string };
+  external_urls: string;
 }
 
 // --- Helper Functions ---
@@ -154,30 +152,43 @@ export default function PlaylistDetailsPage() {
       <main className="max-w-7xl mx-auto px-6">
         {/* --- Playlist Header --- */}
         <div className="flex flex-col md:flex-row items-start md:items-end gap-8 mb-8 pb-8 border-b border-zinc-800">
-          <div className="shadow-2xl shadow-black/50 rounded-lg overflow-hidden shrink-0">
-            {playlist.images?.[0]?.url ? (
-              <Image
-                src={playlist.images[0].url}
-                alt={playlist.name}
-                width={230}
-                height={230}
-                className="object-cover"
-                radius="none"
-              />
-            ) : (
-              <div className="w-[230px] h-[230px] bg-zinc-800 flex items-center justify-center">
-                <span className="text-4xl">🎵</span>
-              </div>
-            )}
+          {/* Image Column */}
+          <div className="flex flex-row gap-4 items-end shrink-0">
+            <div className="shadow-2xl shadow-black/50 rounded-lg overflow-hidden">
+              {playlist.images?.[0]?.url ? (
+                <Image
+                  src={playlist.images[0].url}
+                  alt={playlist.name}
+                  width={230}
+                  height={230}
+                  className="object-cover"
+                  radius="none"
+                />
+              ) : (
+                <div className="w-[230px] h-[230px] bg-zinc-800 flex items-center justify-center">
+                  <span className="text-4xl">🎵</span>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-col gap-2 w-full">
             <span className="uppercase text-xs font-bold tracking-widest text-white">
               Playlist
             </span>
-            <h1 className="text-5xl md:text-7xl font-black text-white tracking-tight mb-2">
-              {playlist.name}
-            </h1>
+            <div className="flex flex-row items-center gap-4">
+              <h1 className="text-5xl md:text-7xl font-black text-white tracking-tight mb-2">
+                {playlist.name}
+              </h1>
+              <Button
+                  isIconOnly
+                  variant="light"
+                  className="text-zinc-400 hover:text-white"
+                  onPress={() => window.open(playlist.external_urls, "_blank")}
+              >
+                  <ExternalLink size={24} />
+              </Button>
+            </div>
             <p className="text-zinc-400 text-sm max-w-2xl line-clamp-2">
               {playlist.description || "No description provided."}
             </p>
@@ -191,38 +202,6 @@ export default function PlaylistDetailsPage() {
               <span>{playlist.tracks.total} songs</span>
             </div>
           </div>
-        </div>
-
-        {/* --- Action Bar --- */}
-        <div className="flex items-center gap-4 mb-8">
-          <Button
-            isIconOnly
-            className="w-14 h-14 rounded-full bg-green-500 hover:bg-green-400 text-black"
-            onPress={() =>
-              window.open(playlist.external_urls.spotify, "_blank")
-            }
-          >
-            <Play fill="currentColor" size={24} className="ml-1" />
-          </Button>
-
-          <Button
-            variant="bordered"
-            className="border-zinc-600 hover:border-white text-white font-bold"
-            onPress={() =>
-              window.open(playlist.external_urls.spotify, "_blank")
-            }
-            endContent={<ExternalLink size={16} />}
-          >
-            Open in Spotify
-          </Button>
-
-          <Button
-            isIconOnly
-            variant="light"
-            className="text-zinc-400 hover:text-white"
-          >
-            <MoreHorizontal size={32} />
-          </Button>
         </div>
 
         {/* --- Tracks Table --- */}
@@ -255,7 +234,8 @@ export default function PlaylistDetailsPage() {
               .map((item, index) => (
                 <TableRow
                   key={`${item.track.id}-${index}`}
-                  className="hover:bg-white/10"
+                  className="hover:bg-white/10 cursor-pointer"
+                  onClick={() => window.open(item.track.external_urls.spotify, "_blank")}
                 >
                   <TableCell className="text-zinc-400 font-medium w-10">
                     {index + 1}
