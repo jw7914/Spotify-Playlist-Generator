@@ -194,7 +194,7 @@ export default function SearchPage() {
                     }}
 					listboxProps={{
 						itemClasses: {
-							base: "text-zinc-300 data-[hover=true]:bg-zinc-800 data-[hover=true]:text-white data-[selectable=true]:focus:bg-zinc-800",
+							base: "text-zinc-300 data-[hover=true]:bg-zinc-700 data-[hover=true]:!text-white data-[selectable=true]:focus:bg-zinc-700",
 						},
 					}}
                 >
