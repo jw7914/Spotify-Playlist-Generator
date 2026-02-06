@@ -154,6 +154,7 @@ export default function ProfilePage() {
   // --- Currently Playing State ---
   const [currentlyPlaying, setCurrentlyPlaying] = useState<any>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0); // [NEW] Progress state
   const [playingLoading, setPlayingLoading] = useState(true);
 
   // --- Genres State ---
@@ -181,10 +182,31 @@ export default function ProfilePage() {
         .catch((err) => console.error("Failed to load history", err))
         .finally(() => setRecentLoading(false));
 
-       // Fetch Currently Playing
+       // Fetch Currently Playing immediately
        fetchCurrentlyPlaying();
+
+       // Poll every 5 seconds
+       const interval = setInterval(fetchCurrentlyPlaying, 5000);
+
+       // Cleanup on unmount
+       return () => clearInterval(interval);
     }
   }, [isAuthenticated]);
+
+  // [NEW] Effect to increment progress
+  useEffect(() => {
+      let interval: ReturnType<typeof setInterval>;
+      if (isPlaying && currentlyPlaying) {
+          interval = setInterval(() => {
+              setProgress((prev) => {
+                  if (prev >= currentlyPlaying.duration_ms) return prev;
+                  return prev + 1000;
+              });
+          }, 1000);
+      }
+      return () => clearInterval(interval);
+  }, [isPlaying, currentlyPlaying]);
+
 
   const fetchCurrentlyPlaying = () => {
     api.spotify.getCurrentlyPlaying()
@@ -192,9 +214,16 @@ export default function ProfilePage() {
           if (data && data.item) {
               setCurrentlyPlaying(data.item);
               setIsPlaying(data.is_playing);
+              // Only update progress from API if deviation is large or first load
+              // But simplest way is just strict sync or sync if not recently updated. 
+              // Let's strict sync for now to keep it simple, the 1s tick handles between polls.
+              // Note: Polling every 5s might cause "jumps" if we overwrite local state constantly.
+              // A simple approach: Always sync.
+              setProgress(data.item.progress_ms || 0); 
           } else {
               setCurrentlyPlaying(null);
               setIsPlaying(false);
+              setProgress(0);
           }
       })
       .catch((err) => console.error("Failed to load currently playing", err))
@@ -256,6 +285,14 @@ export default function ProfilePage() {
       }));
 
     setTopGenres(sortedGenres);
+  };
+
+  const formatTime = (ms: number) => {
+      if (!ms && ms !== 0) return "--:--";
+      const totalSeconds = Math.floor(ms / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
   if (isLoading || !user) return null;
@@ -514,7 +551,7 @@ export default function ProfilePage() {
                              />
                          </div>
                          
-                         <div className="flex flex-col gap-1 min-w-0 flex-grow text-center md:text-left">
+                         <div className="flex flex-col gap-1 min-w-0 flex-grow text-center md:text-left w-full md:w-auto">
                              <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
                                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
                                      Now Playing
@@ -524,20 +561,31 @@ export default function ProfilePage() {
                                  href={currentlyPlaying.external_url}
                                  target="_blank"
                                  rel="noopener noreferrer"
-                                 className="text-2xl font-bold text-white hover:underline truncate"
+                                 className="text-2xl font-bold text-white hover:underline truncate w-full block"
                              >
                                  {currentlyPlaying.name}
                              </a>
-                             <p className="text-zinc-300 text-lg truncate">
+                             <p className="text-zinc-300 text-lg truncate mb-2">
                                  {currentlyPlaying.artists.map((a: any) => a.name).join(", ")}
                              </p>
-                             <p className="text-zinc-500 text-sm truncate">
-                                 {currentlyPlaying.album.name}
-                             </p>
+                             
+                             {/* Progress Bar & Time */}
+                             <div className="flex flex-col gap-1 w-full max-w-md">
+                                <div className="flex items-center justify-between text-xs text-zinc-400 font-mono">
+                                    <span>{formatTime(progress)}</span>
+                                    <span>{formatTime(currentlyPlaying.duration_ms)}</span>
+                                </div>
+                                <div className="w-full h-1.5 bg-zinc-700/50 rounded-full overflow-hidden">
+                                    <div 
+                                        className="h-full bg-emerald-500 rounded-full transition-all duration-1000 ease-linear"
+                                        style={{ width: `${Math.min((progress / currentlyPlaying.duration_ms) * 100, 100)}%` }}
+                                    />
+                                </div>
+                             </div>
                          </div>
                          
                          {/* Controls */}
-                         <div className="flex items-center gap-4 md:mr-4">
+                         <div className="flex items-center gap-4 md:mr-4 flex-shrink-0">
                              <button onClick={() => handleControl("previous")} className="p-2 hover:bg-white/10 rounded-full transition">
                                  <SkipBackIcon />
                              </button>
