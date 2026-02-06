@@ -607,6 +607,7 @@ def get_top_tracks(request: Request, time_range: str = "medium_term", limit: int
                 "image": t.get("album", {}).get("images", [{}])[0].get("url")
             },
             "duration_ms": t.get("duration_ms"),
+            "uri": t.get("uri"),
             "external_url": (t.get("external_urls") or {}).get("spotify"),
         })
 
