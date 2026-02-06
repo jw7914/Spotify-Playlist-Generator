@@ -79,9 +79,7 @@ export default function StatsPage() {
 
   // --- Genres & Tracks State ---
   const [topGenres, setTopGenres] = useState<GenreStat[]>([]);
-  const [topTracks, setTopTracks] = useState([]);
   const [genresLoading, setGenresLoading] = useState(true);
-  const [tracksLoading, setTracksLoading] = useState(true);
   const [timeRange, setTimeRange] = useState("short_term");
 
   useEffect(() => {
@@ -94,7 +92,7 @@ export default function StatsPage() {
   useEffect(() => {
     if (isAuthenticated) {
       setGenresLoading(true);
-      setTracksLoading(true);
+
 
       // Fetch Artists for Genres
       api.spotify.getTopArtists(timeRange, 50)
@@ -106,13 +104,7 @@ export default function StatsPage() {
         .catch((err) => console.error("Failed to load artists for genres", err))
         .finally(() => setGenresLoading(false));
         
-      // Fetch Top Tracks
-      api.spotify.getTopTracks(timeRange, 10)
-         .then((data) => {
-             if (data.tracks) setTopTracks(data.tracks as any);
-         })
-         .catch((err) => console.error("Failed to load top tracks", err))
-         .finally(() => setTracksLoading(false));
+
     }
   }, [isAuthenticated, timeRange]);
 
@@ -140,13 +132,7 @@ export default function StatsPage() {
     setTopGenres(sortedGenres);
   };
 
-  const formatTime = (ms: number) => {
-      if (!ms && ms !== 0) return "--:--";
-      const totalSeconds = Math.floor(ms / 1000);
-      const minutes = Math.floor(totalSeconds / 60);
-      const seconds = totalSeconds % 60;
-      return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-  };
+
 
   const getRangeTitle = () => {
     if (timeRange === "short_term") return "Last 4 Weeks";
@@ -181,7 +167,7 @@ export default function StatsPage() {
              <p className="text-zinc-400">Deep dive into your listening habits</p>
         </div>
 
-        <div className="mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
             <Card
                 isPressable
                 onPress={() => navigate("/top-artists")}
@@ -201,6 +187,29 @@ export default function StatsPage() {
                 <CardBody className="p-0 mt-4">
                     <p className="text-zinc-400 text-sm leading-relaxed">
                         View detailed ranking of your top artists.
+                    </p>
+                </CardBody>
+            </Card>
+
+            <Card
+                isPressable
+                onPress={() => navigate("/top-tracks")}
+                className="w-full bg-zinc-900/50 border border-zinc-800 hover:border-violet-500 transition-all duration-300 group p-5"
+            >
+                <CardHeader className="flex gap-4 p-0 mb-2">
+                    <div className="p-3 bg-violet-500/10 rounded-xl text-violet-500 group-hover:bg-violet-500 group-hover:text-white transition-colors">
+                        <PlaylistIcon />
+                    </div>
+                    <div className="flex flex-col text-left justify-center">
+                        <p className="text-xl font-bold text-white">Top Tracks</p>
+                        <p className="text-xs text-zinc-400 uppercase tracking-wide">
+                            Detailed Breakdown
+                        </p>
+                    </div>
+                </CardHeader>
+                <CardBody className="p-0 mt-4">
+                    <p className="text-zinc-400 text-sm leading-relaxed">
+                        View detailed ranking of your top tracks.
                     </p>
                 </CardBody>
             </Card>
@@ -319,56 +328,7 @@ export default function StatsPage() {
           </div>
         </div>
 
-        {/* --- Top Tracks Section --- */}
-        <div className="mb-16">
-             <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
-                 <PlaylistIcon /> Top Tracks
-                 <span className="text-zinc-500 font-normal text-xl">
-                   ({getRangeTitle()})
-                 </span>
-             </h2>
-             
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 {tracksLoading ? (
-                     Array(6).fill(0).map((_, i) => (
-                         <Skeleton key={i} className="h-16 w-full rounded-lg bg-zinc-900/30" />
-                     ))
-                 ) : topTracks.length === 0 ? (
-                     <p className="text-zinc-500 col-span-2">No top tracks found for this period.</p>
-                 ) : (
-                     topTracks.map((track: any, index: number) => (
-                         <a 
-                             key={track.id} 
-                             href={track.external_url}
-                             target="_blank"
-                             rel="noopener noreferrer"
-                             className="flex items-center gap-4 p-3 rounded-lg hover:bg-zinc-800/50 transition group bg-zinc-900/20 border border-transparent hover:border-zinc-700"
-                         >
-                             <span className="text-xl font-bold text-zinc-600 w-6 text-center group-hover:text-[#6A6BB5] transition-colors">
-                                 {index + 1}
-                             </span>
-                             <img 
-                                 src={track.album.image} 
-                                 alt={track.name} 
-                                 className="w-12 h-12 rounded shadow-md object-cover" 
-                             />
-                             <div className="flex flex-col min-w-0">
-                                 <span className="font-bold text-white truncate group-hover:text-emerald-400 transition-colors">
-                                     {track.name}
-                                 </span>
-                                 <span className="text-xs text-zinc-400 truncate">
-                                     {track.artists.map((a: any) => a.name).join(", ")}
-                                 </span>
-                             </div>
-                             <div className="flex-grow" />
-                             <span className="text-xs text-zinc-500 font-mono">
-                                 {formatTime(track.duration_ms)}
-                             </span>
-                         </a>
-                     ))
-                 )}
-             </div>
-        </div>
+
       </div>
     </div>
   );
