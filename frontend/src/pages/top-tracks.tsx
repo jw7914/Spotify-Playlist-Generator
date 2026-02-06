@@ -42,7 +42,7 @@ export default function TopTracksPage() {
 
   // State for controls
   const [limit, setLimit] = useState<string>("20");
-  const [timeRange, setTimeRange] = useState<string>("medium_term");
+  const [timeRange, setTimeRange] = useState<string>("short_term");
 
   const navigate = useNavigate();
 
