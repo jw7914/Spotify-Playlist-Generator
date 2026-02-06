@@ -19,7 +19,7 @@ import {
   useDisclosure,
 } from "@heroui/react";
 
-import { ExternalLink, Music, Library, Plus, Trash2, CheckCircle, XCircle } from "lucide-react";
+import { ExternalLink, Music, Library, Plus, Trash2, CheckCircle, XCircle, ArrowLeft } from "lucide-react";
 
 interface Playlist {
   id: string;
@@ -189,7 +189,18 @@ export default function PlaylistsPage() {
           </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-6 py-12">
+      <div className="sticky top-0 z-50 bg-black/50 backdrop-blur-md px-6 py-4">
+        <Button
+          isIconOnly
+          variant="light"
+          className="text-zinc-400 hover:text-white"
+          onPress={() => navigate("/profile")}
+        >
+          <ArrowLeft size={24} />
+        </Button>
+      </div>
+
+      <main className="max-w-7xl mx-auto px-6 pb-12">
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-end mb-10 gap-4">
           <div>

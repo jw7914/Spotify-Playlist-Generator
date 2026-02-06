@@ -18,6 +18,7 @@ import {
   Music,
   ListFilter,
   CalendarClock,
+  ArrowLeft,
 } from "lucide-react";
 
 import { api, AuthError } from "../services/api";
@@ -92,7 +93,18 @@ export default function TopArtistsPage() {
 
   return (
     <div className="min-h-screen bg-black text-white selection:bg-purple-500/30">
-      <main className="max-w-7xl mx-auto px-6 py-12">
+      <div className="sticky top-0 z-50 bg-black/50 backdrop-blur-md px-6 py-4">
+        <Button
+          isIconOnly
+          variant="light"
+          className="text-zinc-400 hover:text-white"
+          onPress={() => navigate("/stats")}
+        >
+          <ArrowLeft size={24} />
+        </Button>
+      </div>
+
+      <main className="max-w-7xl mx-auto px-6 pb-12">
         {/* Header Section */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
           <div className="flex items-center gap-3">
