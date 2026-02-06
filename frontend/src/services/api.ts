@@ -107,6 +107,10 @@ export const api = {
         return fetchJson<{ is_playing: boolean; item?: any }>(`${BASE_URL}/spotify/currently-playing`);
     },
 
+    getQueue: () => {
+        return fetchJson<{ queue: any[], currently_playing: any }>(`${BASE_URL}/spotify/player/queue`);
+    },
+
     play: () => fetchJson(`${BASE_URL}/spotify/player/play`, { method: "PUT" }),
     pause: () => fetchJson(`${BASE_URL}/spotify/player/pause`, { method: "PUT" }),
     next: () => fetchJson(`${BASE_URL}/spotify/player/next`, { method: "POST" }),

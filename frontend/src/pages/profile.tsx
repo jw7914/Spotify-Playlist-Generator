@@ -11,6 +11,7 @@ import {
 import { api } from "../services/api";
 
 // --- Icons ---
+import { Music } from "lucide-react";
 const PlayIcon = ({ className, ...props }: React.SVGProps<SVGSVGElement>) => (
     <svg className={`w-8 h-8 fill-current ${className || ""}`} viewBox="0 0 24 24" {...props}>
        <path d="M8 5v14l11-7z" />
@@ -100,6 +101,10 @@ export default function ProfilePage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0); // [NEW] Progress state
   const [playingLoading, setPlayingLoading] = useState(true);
+  
+  // --- Queue State ---
+  const [queue, setQueue] = useState<any[]>([]);
+  const [queueLoading, setQueueLoading] = useState(true);
 
 
 
@@ -123,11 +128,16 @@ export default function ProfilePage() {
         .catch((err) => console.error("Failed to load history", err))
         .finally(() => setRecentLoading(false));
 
-       // Fetch Currently Playing immediately
+
+       // Fetch Currently Playing & Queue immediately
        fetchCurrentlyPlaying();
+       fetchQueue();
 
        // Poll every 5 seconds
-       const interval = setInterval(fetchCurrentlyPlaying, 5000);
+       const interval = setInterval(() => {
+           fetchCurrentlyPlaying();
+           fetchQueue();
+       }, 5000);
 
        // Cleanup on unmount
        return () => clearInterval(interval);
@@ -169,6 +179,17 @@ export default function ProfilePage() {
       })
       .catch((err) => console.error("Failed to load currently playing", err))
       .finally(() => setPlayingLoading(false));
+  };
+
+  const fetchQueue = () => {
+      api.spotify.getQueue()
+          .then((data) => {
+              if (data && data.queue) {
+                  setQueue(data.queue);
+              }
+          })
+          .catch((err) => console.error("Failed to load queue", err))
+          .finally(() => setQueueLoading(false));
   };
   
   const handleControl = async (action: "play" | "pause" | "next" | "previous") => {
@@ -248,102 +269,167 @@ export default function ProfilePage() {
 
 
 
-        {/* --- Currently Playing --- */}
+        {/* --- Media Player (Now Playing + Queue) --- */}
         <div className="mb-12">
             <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                <PlayIcon /> Currently Playing
+                <PlayIcon /> Media Player
             </h2>
-             {playingLoading ? (
-                <Card className="w-full bg-zinc-900/30 border border-zinc-800 p-6">
-                     <div className="flex items-center gap-4">
-                        <Skeleton className="w-20 h-20 rounded-md bg-zinc-800" />
-                        <div className="flex flex-col gap-2">
-                             <Skeleton className="w-40 h-4 rounded-md bg-zinc-800" />
-                             <Skeleton className="w-24 h-3 rounded-md bg-zinc-800" />
-                        </div>
-                     </div>
-                </Card>
-             ) : currentlyPlaying ? (
-                 <Card className="w-full bg-zinc-900/30 border border-emerald-500/30 p-6 relative overflow-hidden group">
-                     {/* Background blur effect */}
-                     <div className="absolute inset-0 bg-emerald-500/5 group-hover:bg-emerald-500/10 transition-colors duration-500"></div>
-                     
-                     <div className="relative flex flex-col md:flex-row items-center gap-6 z-10 w-full">
-                         <div className="relative w-24 h-24 flex-shrink-0 group-hover:scale-105 transition-transform duration-500">
-                             {/* Synth Glow Effect */}
-                             {isPlaying && (
-                                 <div className="absolute -inset-2 bg-gradient-to-r from-emerald-500 to-purple-600 rounded-lg opacity-75 blur-lg animate-pulse"></div>
-                             )}
-                             <Image
-                                 src={currentlyPlaying.album.image}
-                                 alt={currentlyPlaying.album.name}
-                                 className="relative object-cover w-full h-full rounded-md z-10 shadow-xl"
-                                 radius="none"
-                             />
-                         </div>
-                         
-                         <div className="flex flex-col gap-1 min-w-0 flex-grow text-center md:text-left w-full md:w-auto">
-                             <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
-                                 <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
-                                     Now Playing
-                                 </span>
-                             </div>
-                             <a 
-                                 href={currentlyPlaying.external_url}
-                                 target="_blank"
-                                 rel="noopener noreferrer"
-                                 className="text-2xl font-bold text-white hover:underline truncate w-full block"
-                             >
-                                 {currentlyPlaying.name}
-                             </a>
-                             <p className="text-zinc-300 text-lg truncate mb-2">
-                                 {currentlyPlaying.artists.map((a: any) => a.name).join(", ")}
-                             </p>
-                             
-                             {/* Progress Bar & Time */}
-                             <div className="flex flex-col gap-1 w-full max-w-md">
-                                <div className="flex items-center justify-between text-xs text-zinc-400 font-mono">
-                                    <span>{formatTime(progress)}</span>
-                                    <span>{formatTime(currentlyPlaying.duration_ms)}</span>
+            <Card className="w-full bg-zinc-900/30 border border-zinc-800 overflow-hidden min-h-[400px]">
+                <div className="flex flex-col lg:flex-row h-full">
+                    
+                    {/* LEFT: Currently Playing */}
+                    <div className="w-full lg:w-1/2 p-8 border-b lg:border-b-0 lg:border-r border-zinc-800 relative group flex flex-col justify-center">
+                        {playingLoading ? (
+                            <div className="flex items-center gap-6">
+                                <Skeleton className="w-32 h-32 rounded-lg bg-zinc-800" />
+                                <div className="flex flex-col gap-3">
+                                     <Skeleton className="w-48 h-6 rounded-md bg-zinc-800" />
+                                     <Skeleton className="w-32 h-4 rounded-md bg-zinc-800" />
                                 </div>
-                                <div className="w-full h-1.5 bg-zinc-700/50 rounded-full overflow-hidden">
-                                    <div 
-                                        className="h-full bg-emerald-500 rounded-full transition-all duration-1000 ease-linear"
-                                        style={{ width: `${Math.min((progress / currentlyPlaying.duration_ms) * 100, 100)}%` }}
-                                    />
+                            </div>
+                        ) : currentlyPlaying ? (
+                            <>
+                                {/* Background blur effect */}
+                                <div className="absolute inset-0 bg-emerald-500/5 group-hover:bg-emerald-500/10 transition-colors duration-500 pointer-events-none"></div>
+                                
+                                <div className="relative flex flex-col md:flex-row items-center gap-8 z-10 w-full">
+                                     <div className="relative w-40 h-40 flex-shrink-0 group-hover:scale-105 transition-transform duration-500">
+                                         {isPlaying && (
+                                             <div className="absolute -inset-4 bg-gradient-to-r from-emerald-500 to-purple-600 rounded-xl opacity-100 blur-3xl animate-pulse"></div>
+                                         )}
+                                         <Image
+                                             src={currentlyPlaying.album.image}
+                                             alt={currentlyPlaying.album.name}
+                                             className="relative object-cover w-full h-full rounded-lg z-10 shadow-2xl"
+                                             radius="none"
+                                         />
+                                     </div>
+                                     
+                                     <div className="flex flex-col gap-2 min-w-0 flex-grow text-center md:text-left w-full md:w-auto">
+                                         <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
+                                             <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold uppercase tracking-widest">
+                                                 Now Playing
+                                             </span>
+                                         </div>
+                                         <a 
+                                             href={currentlyPlaying.external_url}
+                                             target="_blank"
+                                             rel="noopener noreferrer"
+                                             className="text-3xl font-black text-white hover:underline truncate w-full block tracking-tight"
+                                         >
+                                             {currentlyPlaying.name}
+                                         </a>
+                                         <p className="text-zinc-300 text-xl truncate mb-4 font-medium">
+                                             {currentlyPlaying.artists.map((a: any) => a.name).join(", ")}
+                                         </p>
+                                         
+                                         {/* Progress Bar & Time */}
+                                         <div className="flex flex-col gap-2 w-full max-w-md">
+                                            <div className="flex items-center justify-between text-xs text-zinc-400 font-mono">
+                                                <span>{formatTime(progress)}</span>
+                                                <span>{formatTime(currentlyPlaying.duration_ms)}</span>
+                                            </div>
+                                            <div className="w-full h-2 bg-zinc-700/50 rounded-full overflow-hidden">
+                                                <div 
+                                                    className="h-full bg-emerald-500 rounded-full transition-all duration-1000 ease-linear shadow-[0_0_10px_rgba(16,185,129,0.5)]"
+                                                    style={{ width: `${Math.min((progress / currentlyPlaying.duration_ms) * 100, 100)}%` }}
+                                                />
+                                            </div>
+                                         </div>
+                                     </div>
                                 </div>
-                             </div>
-                         </div>
-                         
-                         {/* Controls */}
-                         <div className="flex items-center gap-4 md:mr-4 flex-shrink-0">
-                             <button onClick={() => handleControl("previous")} className="p-2 hover:bg-white/10 rounded-full transition">
-                                 <SkipBackIcon />
-                             </button>
-                             
-                             <button 
-                                onClick={() => handleControl(isPlaying ? "pause" : "play")}
-                                className="w-14 h-14 bg-emerald-500 rounded-full flex items-center justify-center hover:scale-105 transition active:scale-95 text-white shadow-lg shadow-emerald-500/20"
-                             >
-                                 {isPlaying ? <PauseIcon /> : <PlayIcon className="ml-1" />}
-                             </button>
-                             
-                             <button onClick={() => handleControl("next")} className="p-2 hover:bg-white/10 rounded-full transition">
-                                <SkipForwardIcon />
-                             </button>
-                         </div>
-                     </div>
-                 </Card>
-             ) : (
-                <div className="w-full bg-zinc-900/30 border border-zinc-800 rounded-xl p-8 text-center text-zinc-500 flex flex-col items-center gap-2">
-                    <span className="p-3 bg-zinc-800 rounded-full text-white">
-                        <PlayIcon />
-                    </span>
-                    <p>Not playing anything right now.</p>
-                </div>
-             )}
-        </div>
+                                
+                                {/* Controls - Bottom Positioned & Centered */}
+                                <div className="mt-8 flex items-center justify-center gap-8 z-10 w-full">
+                                     <button onClick={() => handleControl("previous")} className="p-3 hover:bg-white/10 rounded-full transition group/btn">
+                                         <SkipBackIcon className="w-8 h-8 group-hover/btn:text-white" />
+                                     </button>
+                                     
+                                     <button 
+                                        onClick={() => handleControl(isPlaying ? "pause" : "play")}
+                                        className="w-16 h-16 bg-emerald-500 hover:bg-emerald-400 rounded-full flex items-center justify-center hover:scale-105 transition active:scale-95 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)]"
+                                     >
+                                         {isPlaying ? <PauseIcon className="w-8 h-8" /> : <PlayIcon className="ml-1 w-8 h-8" />}
+                                     </button>
+                                     
+                                     <button onClick={() => handleControl("next")} className="p-3 hover:bg-white/10 rounded-full transition group/btn">
+                                        <SkipForwardIcon className="w-8 h-8 group-hover/btn:text-white" />
+                                     </button>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full py-12 text-center text-zinc-500 gap-4">
+                                <span className="p-6 bg-zinc-800 rounded-full text-zinc-400">
+                                    <PlayIcon className="w-10 h-10" />
+                                </span>
+                                <div className="flex flex-col gap-1">
+                                    <p className="text-xl font-bold text-white">No Music Playing</p>
+                                    <p className="text-sm">Start listening on Spotify to see it here.</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
 
+                    {/* RIGHT: Queue / Up Next */}
+                    <div className="w-full lg:w-1/2 flex flex-col bg-black/40 backdrop-blur-sm border-l border-zinc-800">
+                        <div className="p-6 border-b border-zinc-800/50 flex items-center gap-3 bg-zinc-900/20">
+                             <Music className="w-5 h-5 text-emerald-500" /> 
+                             <h3 className="text-sm font-black text-zinc-400 uppercase tracking-widest">Up Next</h3>
+                        </div>
+                        
+                        <div className="flex-1 p-4 overflow-y-auto max-h-[450px] scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent">
+                             {queueLoading ? (
+                                <div className="space-y-4">
+                                    {[1, 2, 3, 4].map(i => <Skeleton key={i} className="w-full h-16 rounded-lg bg-zinc-800/50" />)}
+                                </div>
+                             ) : queue.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center text-zinc-500 gap-2 min-h-[300px]">
+                                    <Music className="w-8 h-8 opacity-20" />
+                                    <p className="text-sm font-medium">Queue is empty</p>
+                                </div>
+                             ) : (
+                                 <div className="flex flex-col gap-2">
+                                     {queue.slice(0, 10).map((track, i) => (
+                                         <div key={`${track.id}-${i}`} className="flex items-center gap-4 p-3 rounded-lg hover:bg-white/5 transition group border border-transparent hover:border-zinc-800">
+                                             <span className="w-6 text-center text-zinc-600 font-mono text-sm font-bold group-hover:text-emerald-500 transition-colors">
+                                                 {i + 1}
+                                             </span>
+                                             <div className="relative w-12 h-12 flex-shrink-0 shadow-lg">
+                                                 <img 
+                                                    src={track.album?.images?.[0]?.url || "/placeholder_album.svg"} 
+                                                    alt={track.name}
+                                                    className="w-full h-full rounded object-cover"
+                                                 />
+                                                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors rounded"></div>
+                                             </div>
+                                             
+                                             <div className="flex-1 min-w-0 py-1">
+                                                 <p className="text-white text-base font-bold truncate group-hover:text-emerald-400 transition-colors">
+                                                     {track.name}
+                                                 </p>
+                                                 <p className="text-zinc-400 text-xs font-medium truncate">
+                                                     {track.artists?.map((a: any) => a.name).join(", ")}
+                                                 </p>
+                                             </div>
+                                             <span className="text-zinc-600 text-xs font-mono ml-2">
+                                                 {formatTime(track.duration_ms)}
+                                             </span>
+                                         </div>
+                                     ))}
+                                     {queue.length > 10 && (
+                                         <div className="text-center py-4 border-t border-zinc-800/50 mt-2">
+                                             <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
+                                                 + {queue.length - 10} more tracks
+                                             </p>
+                                         </div>
+                                     )}
+                                 </div>
+                             )}
+                        </div>
+                    </div>
+                </div>
+            </Card>
+        </div>
 
         {/* --- Recently Played --- */}
         <div className="mb-12">

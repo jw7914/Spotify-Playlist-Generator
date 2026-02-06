@@ -82,7 +82,7 @@ def handle_token_refresh(refresh_token: str):
 
 @router.get("/auth/login")
 def login():
-    scope = "user-read-private user-read-email user-top-read user-read-recently-played user-read-currently-playing user-modify-playback-state playlist-modify-public playlist-modify-private playlist-read-private playlist-read-collaborative"
+    scope = "user-read-private user-read-email user-top-read user-read-recently-played user-read-currently-playing user-read-playback-state user-modify-playback-state playlist-modify-public playlist-modify-private playlist-read-private playlist-read-collaborative"
     state = secrets.token_urlsafe(16)
     params = {
         "client_id": SPOTIFY_CLIENT_ID,
@@ -788,11 +788,50 @@ def _proxy_player_request(request: Request, method: str, endpoint: str):
         # 403 usually means premium required or scope missing, or no active device
         raise HTTPException(status_code=he.code, detail=f"Spotify Error: {he}")
 
-    resp = JSONResponse({"success": True})
     if new_cookie_needed:
         resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
         resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
     return resp
+
+@router.get("/player/queue")
+def get_queue(request: Request):
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token: return RedirectResponse(url="/api/auth/login")
+
+    try: expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except: expires_at = 0
+
+    new_cookie_needed = False
+    
+    if datetime.now().timestamp() > expires_at:
+        token_data = handle_token_refresh(refresh_token)
+        if not token_data: return RedirectResponse(url="/api/auth/login")
+        access_token = token_data.get("access_token")
+        expires_at = datetime.now().timestamp() + (token_data.get("expires_in") or 0)
+        new_cookie_needed = True
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    url = f"{API_BASE_URL}/me/player/queue"
+    
+    try:
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as he:
+        if he.code == 401: return RedirectResponse(url="/api/auth/login")
+        # 403 Forbidden might happen if scope is missing (user needs to re-login)
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+
+    if new_cookie_needed:
+        resp = JSONResponse(data)
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+
+    return data
 
 @router.put("/player/play")
 def play_playback(request: Request):
