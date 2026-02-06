@@ -8,7 +8,7 @@ import base64
 import secrets
 from datetime import datetime
 import os
-from backend.routers.spotify_models import CreatePlaylistRequest, AddTracksRequest
+from backend.routers.spotify_models import CreatePlaylistRequest, AddTracksRequest, UploadImageRequest
 
 API_BASE_URL = "https://api.spotify.com/v1"
 STATE_TTL = 300
@@ -82,7 +82,7 @@ def handle_token_refresh(refresh_token: str):
 
 @router.get("/auth/login")
 def login():
-    scope = "user-read-private user-read-email user-top-read user-read-recently-played user-read-currently-playing user-modify-playback-state playlist-modify-public playlist-modify-private playlist-read-private playlist-read-collaborative"
+    scope = "user-read-private user-read-email user-top-read user-read-recently-played user-read-currently-playing user-modify-playback-state playlist-modify-public playlist-modify-private playlist-read-private playlist-read-collaborative ugc-image-upload"
     state = secrets.token_urlsafe(16)
     params = {
         "client_id": SPOTIFY_CLIENT_ID,
@@ -460,6 +460,48 @@ def add_tracks_to_playlist(playlist_id: str, body: AddTracksRequest, request: Re
         return resp
 
     return data
+
+@router.put("/playlists/{playlist_id}/images")
+def upload_playlist_cover(playlist_id: str, body: UploadImageRequest, request: Request):
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token: return RedirectResponse(url="/api/auth/login")
+
+    try: expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except: expires_at = 0
+
+    new_cookie_needed = False
+    
+    if datetime.now().timestamp() > expires_at:
+        token_data = handle_token_refresh(refresh_token)
+        if not token_data: return RedirectResponse(url="/api/auth/login")
+        access_token = token_data.get("access_token")
+        expires_at = datetime.now().timestamp() + (token_data.get("expires_in") or 0)
+        new_cookie_needed = True
+
+    # Spotify expects the raw base64 string as the body, with Content-Type: image/jpeg
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "image/jpeg"}
+    url = f"{API_BASE_URL}/playlists/{playlist_id}/images"
+    
+    try:
+        # body.image is the base64 string
+        data_bytes = body.image.encode("utf-8")
+        req = urllib.request.Request(url, data=data_bytes, headers=headers, method="PUT")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+             # Returns 202 Accepted
+             pass
+    except urllib.error.HTTPError as he:
+        if he.code == 401: return RedirectResponse(url="/api/auth/login")
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    
+    resp = JSONResponse({"message": "Image uploaded successfully"})
+    if new_cookie_needed:
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+    
+    return resp
 
 @router.get("/me")
 def get_me(request: Request):

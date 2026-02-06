@@ -78,6 +78,14 @@ export const api = {
             redirect: "manual"
         });
     },
+    uploadPlaylistImage: (playlistId: string, imageBase64: string) => {
+        return fetchJson<any>(`${BASE_URL}/spotify/playlists/${playlistId}/images`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ image: imageBase64 }),
+            redirect: "manual"
+        });
+    },
     deletePlaylist: (playlistId: string) => {
         return fetchJson<any>(`${BASE_URL}/spotify/playlists/${playlistId}`, {
             method: "DELETE",

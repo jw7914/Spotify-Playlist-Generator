@@ -17,8 +17,10 @@ import {
   useDisclosure,
   Switch,
   Textarea,
+  Accordion,
+  AccordionItem,
 } from "@heroui/react";
-import { Search, Music, Disc, User as UserIcon, Plus, CheckCircle, XCircle } from "lucide-react";
+import { Search, Music, Disc, User as UserIcon, Plus, CheckCircle, XCircle, Upload, Image as ImageIcon } from "lucide-react";
 import { api, AuthError } from "../services/api";
 import { useNavigate } from "react-router-dom";
 
@@ -55,6 +57,8 @@ export default function SearchPage() {
   const [newPlaylistName, setNewPlaylistName] = useState("");
   const [newPlaylistDesc, setNewPlaylistDesc] = useState("");
   const [isPublic, setIsPublic] = useState(false);
+  const [playlistImage, setPlaylistImage] = useState<File | null>(null);
+  const [playlistImagePreview, setPlaylistImagePreview] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
   // Reset modal state when closed
@@ -64,6 +68,8 @@ export default function SearchPage() {
         setNewPlaylistName("");
         setNewPlaylistDesc("");
         setIsPublic(false);
+        setPlaylistImage(null);
+        setPlaylistImagePreview(null);
     }
   }, [isOpen]);
 
@@ -107,6 +113,28 @@ export default function SearchPage() {
       }
   };
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 250 * 1024) {
+        setToast({ message: "Image too large (max ~250KB).", type: "error" });
+        return;
+    }
+    
+    if (file.type !== "image/jpeg" && file.type !== "image/jpg") {
+        setToast({ message: "Only JPEG images are supported.", type: "error" });
+        return;
+    }
+
+    setPlaylistImage(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+        setPlaylistImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleCreatePlaylistAndAddTrack = async (onClose: () => void) => {
       if (!newPlaylistName.trim() || !selectedTrackUri) return;
 
@@ -115,6 +143,17 @@ export default function SearchPage() {
           // 1. Create Playlist
           const newPlaylist = await api.spotify.createPlaylist(newPlaylistName, newPlaylistDesc, isPublic);
           
+          // 1.5 Upload Image if present
+          if (playlistImage && playlistImagePreview) {
+              try {
+                   const base64Data = playlistImagePreview.split(',')[1];
+                   await api.spotify.uploadPlaylistImage(newPlaylist.id, base64Data);
+              } catch (imgErr) {
+                  console.error("Failed to upload image", imgErr);
+                  setToast({ message: "Playlist created, but image upload failed.", type: "error" });
+              }
+          }
+
           // 2. Add Track
           await api.spotify.addTracksToPlaylist(newPlaylist.id, [selectedTrackUri]);
           
@@ -439,6 +478,51 @@ export default function SearchPage() {
                                 inputWrapper: "border-white/20 data-[hover=true]:border-white/40 group-data-[focus=true]:border-green-500",
                             }}
                         />
+                        
+                        <Accordion>
+                            <AccordionItem 
+                                key="1" 
+                                aria-label="Upload Cover Image" 
+                                title="Cover Image (Optional)"
+                                subtitle="Click to expand and upload a custom cover image"
+                            >
+                                <div className="flex items-center gap-4 py-2">
+                                    <div className="relative w-20 h-20 rounded-md overflow-hidden bg-zinc-800 border border-zinc-700 flex items-center justify-center group">
+                                        {playlistImagePreview ? (
+                                            <>
+                                                <img src={playlistImagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                                <div 
+                                                    className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center cursor-pointer"
+                                                    onClick={() => {
+                                                        setPlaylistImage(null);
+                                                        setPlaylistImagePreview(null);
+                                                    }}
+                                                >
+                                                    <XCircle size={20} className="text-white" />
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <ImageIcon size={24} className="text-zinc-500" />
+                                        )}
+                                    </div>
+                                    <div className="flex-1">
+                                        <label className="flex items-center gap-2 cursor-pointer bg-zinc-800 hover:bg-zinc-700 text-white text-sm px-4 py-2 rounded-lg transition-colors w-fit">
+                                            <Upload size={16} />
+                                            <span>Upload JPEG</span>
+                                            <input 
+                                                type="file" 
+                                                accept="image/jpeg" 
+                                                className="hidden" 
+                                                onChange={handleImageSelect}
+                                            />
+                                        </label>
+                                        <p className="text-xs text-zinc-500 mt-1">
+                                            Max ~250KB. JPEG only.
+                                        </p>
+                                    </div>
+                                </div>
+                            </AccordionItem>
+                        </Accordion>
                         <div className="flex justify-between items-center px-1">
                             <span className="text-sm text-zinc-400">Public Playlist</span>
                             <Switch 
