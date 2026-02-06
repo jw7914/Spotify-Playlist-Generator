@@ -5,6 +5,7 @@ import IndexPage from "@/pages/index";
 import PlaylistsPage from "@/pages/playlists";
 import PlaylistDetailsPage from "@/pages/tracks";
 import TopArtistsPage from "@/pages/top-artists";
+import StatsPage from "@/pages/stats";
 import ProfilePage from "@/pages/profile";
 import NotFoundPage from "@/pages/404";
 import LoginPage from "@/pages/login";
@@ -22,6 +23,7 @@ function App() {
         <Route element={<PlaylistsPage />} path="/playlists" />
         <Route element={<PlaylistDetailsPage />} path="/playlists/:id" />
         <Route element={<TopArtistsPage />} path="/top-artists" />
+        <Route element={<StatsPage />} path="/stats" />
         <Route element={<SearchPage />} path="/search" />
         <Route element={<ProfilePage />} path="/profile" />
         <Route element={<LoginPage />} path="/login" />

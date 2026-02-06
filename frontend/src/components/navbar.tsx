@@ -149,6 +149,13 @@ export const Navbar = () => {
               >
                 My Profile
               </DropdownItem>
+               <DropdownItem
+                key="stats"
+                onPress={() => navigate("/stats")}
+                className="text-white hover:bg-zinc-800"
+              >
+                My Stats
+              </DropdownItem>
               <DropdownItem
                 key="logout"
                 color="danger"
