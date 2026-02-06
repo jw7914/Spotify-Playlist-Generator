@@ -559,6 +559,59 @@ def get_top_artists(request: Request, time_range: str = "medium_term", limit: in
 
     return {"artists": artists}
 
+@router.get("/top-tracks")
+def get_top_tracks(request: Request, time_range: str = "medium_term", limit: int = 20):
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token: return RedirectResponse(url="/api/auth/login")
+
+    try:
+        expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except Exception:
+        expires_at = 0
+
+    if datetime.now().timestamp() > expires_at:
+        token_data = handle_token_refresh(refresh_token)
+        if not token_data: return RedirectResponse(url="/api/auth/login")
+        
+        access_token = token_data.get("access_token")
+        expires_at = datetime.now().timestamp() + (token_data.get("expires_in") or 0)
+        
+        resp = RedirectResponse(url=f"/api/top-tracks?time_range={time_range}&limit={limit}")
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {"time_range": time_range, "limit": limit}
+    url = f"{API_BASE_URL}/me/top/tracks?{urllib.parse.urlencode(params)}"
+    
+    try:
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as he:
+        if he.code == 401: return RedirectResponse(url="/api/auth/login")
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+
+    tracks = []
+    for t in data.get("items", []):
+        tracks.append({
+            "id": t.get("id"),
+            "name": t.get("name"),
+            "artists": [{"name": a.get("name")} for a in t.get("artists", [])],
+            "album": {
+                "name": t.get("album", {}).get("name"),
+                "image": t.get("album", {}).get("images", [{}])[0].get("url")
+            },
+            "duration_ms": t.get("duration_ms"),
+            "external_url": (t.get("external_urls") or {}).get("spotify"),
+        })
+
+    return {"tracks": tracks}
+
 @router.get("/recently-played")
 def get_recently_played(request: Request, limit: int = 10):
     access_token = request.cookies.get("access_token")

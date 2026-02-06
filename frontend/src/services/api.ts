@@ -92,6 +92,11 @@ export const api = {
         const params = new URLSearchParams({ time_range: timeRange, limit: String(limit) });
         return fetchJson<{ artists: any[] }>(`${BASE_URL}/spotify/top-artists?${params.toString()}`, { redirect: "manual" });
     },
+
+    getTopTracks: (timeRange: string = "medium_term", limit: number | string = 20) => {
+        const params = new URLSearchParams({ time_range: timeRange, limit: String(limit) });
+        return fetchJson<{ tracks: any[] }>(`${BASE_URL}/spotify/top-tracks?${params.toString()}`, { redirect: "manual" });
+    },
     
     getRecentlyPlayed: (limit: number = 10) => {
         return fetchJson<{ items: any[] }>(`${BASE_URL}/spotify/recently-played?limit=${limit}`);

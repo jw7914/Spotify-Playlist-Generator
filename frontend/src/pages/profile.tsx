@@ -157,10 +157,12 @@ export default function ProfilePage() {
   const [progress, setProgress] = useState(0); // [NEW] Progress state
   const [playingLoading, setPlayingLoading] = useState(true);
 
-  // --- Genres State ---
+  // --- Genres & Tracks State ---
   const [topGenres, setTopGenres] = useState<GenreStat[]>([]);
+  const [topTracks, setTopTracks] = useState([]);
   const [genresLoading, setGenresLoading] = useState(true);
-  const [genreTimeRange, setGenreTimeRange] = useState("short_term");
+  const [tracksLoading, setTracksLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState("short_term");
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -248,11 +250,14 @@ export default function ProfilePage() {
       }
   };
 
-  // 2. Fetch Genres
+  // 2. Fetch Genres & Top Tracks
   useEffect(() => {
     if (isAuthenticated) {
       setGenresLoading(true);
-      api.spotify.getTopArtists(genreTimeRange, 50)
+      setTracksLoading(true);
+
+      // Fetch Artists for Genres
+      api.spotify.getTopArtists(timeRange, 50)
         .then((data) => {
           if (data.artists) {
             calculateGenres(data.artists);
@@ -260,8 +265,16 @@ export default function ProfilePage() {
         })
         .catch((err) => console.error("Failed to load artists for genres", err))
         .finally(() => setGenresLoading(false));
+        
+      // Fetch Top Tracks
+      api.spotify.getTopTracks(timeRange, 10)
+         .then((data) => {
+             if (data.tracks) setTopTracks(data.tracks as any);
+         })
+         .catch((err) => console.error("Failed to load top tracks", err))
+         .finally(() => setTracksLoading(false));
     }
-  }, [isAuthenticated, genreTimeRange]);
+  }, [isAuthenticated, timeRange]);
 
   const calculateGenres = (artists: any[]) => {
     const genreCounts: { [key: string]: number } = {};
@@ -299,8 +312,8 @@ export default function ProfilePage() {
   const avatar = user.images?.[0]?.url || "/placeholder_avatar.svg";
 
   const getRangeTitle = () => {
-    if (genreTimeRange === "short_term") return "Last 4 Weeks";
-    if (genreTimeRange === "medium_term") return "Last 6 Months";
+    if (timeRange === "short_term") return "Last 4 Weeks";
+    if (timeRange === "medium_term") return "Last 6 Months";
     return "All Time";
   };
 
@@ -417,9 +430,9 @@ export default function ProfilePage() {
             {/* Tabs */}
             <div className="flex bg-zinc-900/50 p-1 rounded-lg border border-zinc-800">
               <button
-                onClick={() => setGenreTimeRange("short_term")}
+                onClick={() => setTimeRange("short_term")}
                 className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                  genreTimeRange === "short_term"
+                  timeRange === "short_term"
                     ? "bg-zinc-700 text-white shadow-md"
                     : "text-zinc-400 hover:text-white"
                 }`}
@@ -427,9 +440,9 @@ export default function ProfilePage() {
                 Last 4 Weeks
               </button>
               <button
-                onClick={() => setGenreTimeRange("medium_term")}
+                onClick={() => setTimeRange("medium_term")}
                 className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                  genreTimeRange === "medium_term"
+                  timeRange === "medium_term"
                     ? "bg-zinc-700 text-white shadow-md"
                     : "text-zinc-400 hover:text-white"
                 }`}
@@ -437,9 +450,9 @@ export default function ProfilePage() {
                 Last 6 Months
               </button>
               <button
-                onClick={() => setGenreTimeRange("long_term")}
+                onClick={() => setTimeRange("long_term")}
                 className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                  genreTimeRange === "long_term"
+                  timeRange === "long_term"
                     ? "bg-zinc-700 text-white shadow-md"
                     : "text-zinc-400 hover:text-white"
                 }`}
@@ -515,6 +528,57 @@ export default function ProfilePage() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* --- Top Tracks Section --- */}
+        <div className="mb-16">
+             <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+                 <PlaylistIcon /> Top Tracks
+                 <span className="text-zinc-500 font-normal text-xl">
+                   ({getRangeTitle()})
+                 </span>
+             </h2>
+             
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 {tracksLoading ? (
+                     Array(6).fill(0).map((_, i) => (
+                         <Skeleton key={i} className="h-16 w-full rounded-lg bg-zinc-900/30" />
+                     ))
+                 ) : topTracks.length === 0 ? (
+                     <p className="text-zinc-500 col-span-2">No top tracks found for this period.</p>
+                 ) : (
+                     topTracks.map((track: any, index: number) => (
+                         <a 
+                             key={track.id} 
+                             href={track.external_url}
+                             target="_blank"
+                             rel="noopener noreferrer"
+                             className="flex items-center gap-4 p-3 rounded-lg hover:bg-zinc-800/50 transition group bg-zinc-900/20 border border-transparent hover:border-zinc-700"
+                         >
+                             <span className="text-xl font-bold text-zinc-600 w-6 text-center group-hover:text-[#6A6BB5] transition-colors">
+                                 {index + 1}
+                             </span>
+                             <img 
+                                 src={track.album.image} 
+                                 alt={track.name} 
+                                 className="w-12 h-12 rounded shadow-md object-cover" 
+                             />
+                             <div className="flex flex-col min-w-0">
+                                 <span className="font-bold text-white truncate group-hover:text-emerald-400 transition-colors">
+                                     {track.name}
+                                 </span>
+                                 <span className="text-xs text-zinc-400 truncate">
+                                     {track.artists.map((a: any) => a.name).join(", ")}
+                                 </span>
+                             </div>
+                             <div className="flex-grow" />
+                             <span className="text-xs text-zinc-500 font-mono">
+                                 {formatTime(track.duration_ms)}
+                             </span>
+                         </a>
+                     ))
+                 )}
+             </div>
         </div>
 
         {/* --- Currently Playing --- */}
