@@ -3,8 +3,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Card,
-  CardHeader,
-  CardBody,
   Divider,
   Image,
   Skeleton,
@@ -37,21 +35,7 @@ const SkipForwardIcon = ({ className, ...props }: React.SVGProps<SVGSVGElement>)
     </svg>
 );
 
-const PlaylistIcon = () => (
-  <svg
-    className="w-6 h-6 text-white"
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
-    />
-  </svg>
-);
+
 
 
 
@@ -241,45 +225,26 @@ export default function ProfilePage() {
             </h1>
             <p className="text-zinc-400 font-medium">{user.email}</p>
           </div>
-          <div className="flex-grow" />
-          <a
-            href={user.external_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-8 py-3 rounded-full border border-white/20 hover:bg-white/10 hover:border-white transition text-xs font-bold tracking-widest bg-black"
-          >
-            OPEN ON SPOTIFY
-          </a>
+          <div className="flex flex-col gap-3 items-center md:items-end md:ml-auto">
+             <a
+              href={user.external_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-8 py-3 rounded-full border border-white/20 hover:bg-white/10 hover:border-white transition text-xs font-bold tracking-widest bg-black text-center min-w-[200px]"
+            >
+              OPEN ON SPOTIFY
+            </a>
+            <button
+               onClick={() => navigate("/playlists")}
+               className="px-8 py-3 rounded-full bg-[#6A6BB5] hover:bg-[#5a5bb0] text-white transition text-xs font-bold tracking-widest min-w-[200px] shadow-[0_0_20px_rgba(106,107,181,0.3)]"
+            >
+               YOUR PLAYLISTS
+            </button>
+          </div>
         </div>
 
         <Divider className="my-10 bg-zinc-800" />
 
-        {/* --- Library Grid (2 Cols) --- */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-16">
-          <Card
-            isPressable
-            onPress={() => navigate("/playlists")}
-            className="bg-zinc-900/50 border border-zinc-800 hover:border-[#6A6BB5] transition-all duration-300 group p-5"
-          >
-            <CardHeader className="flex gap-4 p-0 mb-2">
-              <div className="p-3 bg-[#6A6BB5]/10 rounded-xl text-[#6A6BB5] group-hover:bg-[#6A6BB5] group-hover:text-white transition-colors">
-                <PlaylistIcon />
-              </div>
-              <div className="flex flex-col text-left justify-center">
-                <p className="text-xl font-bold text-white">Your Playlists</p>
-                <p className="text-xs text-zinc-400 uppercase tracking-wide">
-                  Library Management
-                </p>
-              </div>
-            </CardHeader>
-            <CardBody className="p-0 mt-4">
-              <p className="text-zinc-400 text-sm leading-relaxed">
-                Access your full library, analyze track distributions, and
-                manage your collections.
-              </p>
-            </CardBody>
-          </Card>
-        </div>
 
 
 
