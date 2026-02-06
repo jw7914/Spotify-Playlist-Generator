@@ -274,8 +274,16 @@ export default function ProfilePage() {
             <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
                 <PlayIcon /> Media Player
             </h2>
-            <Card className="w-full bg-zinc-900/30 border border-zinc-800 overflow-hidden min-h-[400px]">
-                <div className="flex flex-col lg:flex-row h-full">
+            <Card className={`relative w-full bg-zinc-900/80 border overflow-hidden min-h-[400px] transition-all duration-1000 group/card ${isPlaying ? "border-emerald-500/50 shadow-[0_0_100px_rgba(16,185,129,0.25)]" : "border-zinc-800"}`}>
+                {/* Global Breathing Glow Background - Intensified */}
+                {isPlaying && (
+                    <>
+                        <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/20 via-purple-900/20 to-emerald-900/20 animate-pulse pointer-events-none duration-[4000ms] z-0"></div>
+                        <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500/20 to-purple-600/20 blur-2xl opacity-50 animate-pulse pointer-events-none z-0"></div>
+                    </>
+                )}
+                
+                <div className="flex flex-col lg:flex-row h-full relative z-10 backdrop-blur-sm">
                     
                     {/* LEFT: Currently Playing */}
                     <div className="w-full lg:w-1/2 p-8 border-b lg:border-b-0 lg:border-r border-zinc-800 relative group flex flex-col justify-center">
