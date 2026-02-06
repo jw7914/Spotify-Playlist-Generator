@@ -7,6 +7,3 @@ class CreatePlaylistRequest(BaseModel):
 
 class AddTracksRequest(BaseModel):
     uris: list[str]
-
-class UploadImageRequest(BaseModel):
-    image: str
