@@ -258,7 +258,12 @@ export default function CreateWithAIPage() {
              </div>
           </div>
           {user && (
-            <Button isIconOnly className="bg-[#1DB954] text-black" onPress={onOpen}>
+            <Button 
+                isIconOnly 
+                className="bg-[#1DB954] text-black" 
+                onPress={onOpen}
+                isDisabled={isLoading}
+            >
                 <History size={20} />
             </Button>
           )}
@@ -354,7 +359,7 @@ export default function CreateWithAIPage() {
                           variant="flat"
                           isIconOnly
                           onClick={() =>
-                            handleOpenPlaylist(msg.playlistData.id)
+                            handleOpenPlaylist(msg.playlistData!.id)
                           }
                           isDisabled={!msg.playlistData.id}
                         >
@@ -393,9 +398,10 @@ export default function CreateWithAIPage() {
               <Chip
                 key={prompt}
                 as="button"
+                isDisabled={isLoading}
                 variant="flat"
-                className="hover:bg-zinc-700 cursor-pointer transition-colors border border-white/5 bg-zinc-800 text-zinc-300 py-4"
-                onClick={() => setInput(prompt)}
+                className={`hover:bg-zinc-700 cursor-pointer transition-colors border border-white/5 bg-zinc-800 text-zinc-300 py-4 ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+                onClick={() => !isLoading && setInput(prompt)}
               >
                 {prompt}
               </Chip>
