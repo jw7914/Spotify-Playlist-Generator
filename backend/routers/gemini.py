@@ -1,126 +1,146 @@
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse
 from google import genai
 from google.genai import types
-import urllib.request
-import urllib.error
-import json
-from backend.routers.gemini_models import ChatRequest, ChatHistoryItem
 import os
+from dotenv import load_dotenv
+from backend.routers.gemini_models import ChatRequest, ChatHistoryItem, CreateSessionRequest, SessionResponse, MessageResponse
+from backend.supabase import supabase
+from datetime import datetime
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = "gemma-3-12b-it"
-MCP_AGENT_URL = "http://127.0.0.1:8080"
-
+load_dotenv()
 router = APIRouter()
 
-client = genai.Client(api_key=GEMINI_API_KEY)
+# Initialize Gemini Client
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-@router.get("/agent-session")
-async def create_agent_session(request: Request):
-    agent_url = f"{MCP_AGENT_URL}/apps/agent/users/test_user/sessions/test_session"
+if not GEMINI_API_KEY:
+    print("WARNING: GEMINI_API_KEY not found. API calls will fail.")
+
+try:
+    client = genai.Client(api_key=GEMINI_API_KEY or "dummy_key")
+except Exception as e:
+    print(f"Failed to initialize Gemini client: {e}")
+    client = None
+
+GEMINI_MODEL = "gemini-flash-latest"
+
+def check_api_key():
+    if not GEMINI_API_KEY:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not found in environment variables. Please add it to backend/.env")
+
+# --- Session Management ---
+
+@router.post("/sessions", response_model=SessionResponse)
+def create_session(body: CreateSessionRequest):
     try:
-        req = urllib.request.Request(
-            agent_url,
-            data=b"", 
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            status = resp.getcode()
-            body_text = resp.read().decode("utf-8")
-        
-        if status == 409:
-            # Delete existing session
-            req = urllib.request.Request(
-                agent_url,
-                data=b"",
-                headers={"Content-Type": "application/json"},
-                method="DELETE",
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                resp.read() # Consume response
-            
-            # Re-create
-            req = urllib.request.Request(
-                agent_url,
-                data=b"",
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                body_text = resp.read().decode("utf-8")
-
-        try:
-            result = json.loads(body_text)
-        except Exception:
-            result = {"raw": body_text}
-
-        return JSONResponse(result)
-    except urllib.error.HTTPError as he:
-        body_text = he.read().decode("utf-8") if hasattr(he, "read") else str(he)
-        raise HTTPException(status_code=502, detail=f"MCP server error: {body_text}")
+        data = {
+            "user_id": body.user_id,
+            "title": body.title or "New Chat"
+        }
+        response = supabase.table("chat_sessions").insert(data).execute()
+        if not response.data:
+            raise HTTPException(status_code=500, detail="Failed to create session")
+        return response.data[0]
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Failed to contact MCP server: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/sessions", response_model=list[SessionResponse])
+def get_sessions(user_id: str):
+    try:
+        response = supabase.table("chat_sessions").select("*").eq("user_id", user_id).order("updated_at", desc=True).execute()
+        return response.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/sessions/{session_id}/messages", response_model=list[MessageResponse])
+def get_session_messages(session_id: str):
+    try:
+        response = supabase.table("chat_messages").select("*").eq("session_id", session_id).order("created_at", desc=False).execute()
+        return response.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/sessions/{session_id}")
+def delete_session(session_id: str):
+    try:
+        # Delete messages first (cascade should handle this if configured, but explicit is safer)
+        supabase.table("chat_messages").delete().eq("session_id", session_id).execute()
+        # Delete session
+        response = supabase.table("chat_sessions").delete().eq("id", session_id).execute()
+        if not response.data:
+             # It might be that the session didn't exist or was already deleted
+             return {"message": "Session not found or already deleted"}
+        return {"message": "Session deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- Chat ---
 
 @router.post("/chat")
 async def chat_endpoint(request: ChatRequest):
+    check_api_key()
     try:
-        chat_contents = [{"text": request.message}]
+        # 1. Create session if provided session_id doesn't exist or is None? 
+        # Actually, if session_id is None, we should probably create one or just treat as ephemeral.
+        # But for history, we want to save it.
+        # Let's assume if session_id is provided, we use it. If not, we don't save to DB (or the frontend should create one first).
+        # Better: If session_id is provided, save.
         
-        url = f"{MCP_AGENT_URL}/run"
+        session_id = request.session_id
+        
+        # Optimize history for Gemini
+        formatted_history = []
+        for item in request.history:
+            formatted_history.append(types.Content(
+                role=item.role,
+                parts=[types.Part.from_text(text=part) for part in item.parts]
+            ))
 
-        payload = {
-            "appName": "agent",
-            "userId": "test_user",
-            "sessionId": "test_session",
-            "newMessage": {
-                "role": "user",
-                "parts": chat_contents
-            }
-        }
-        req_body = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(
-            url,
-            data=req_body,
-            headers={
-                "Content-Type": "application/json",
-                "Content-Length": str(len(req_body)),
-            },
-            method="POST",
+        chat = client.chats.create(
+            model=GEMINI_MODEL,
+            config=types.GenerateContentConfig(
+                system_instruction="You are a Spotify AI DJ. Your goal is to help users build playlists based on their feelings, moods, or described scenarios. When a user describes a scenario, suggest a list of songs or a playlist concept."
+            ),
+            history=formatted_history
         )
-        
-        extracted_id = None
-        user_text = ""
-        
-        with urllib.request.urlopen(req) as response:
-            status = response.getcode()
-            resp_text = response.read().decode("utf-8")
-            data = json.loads(resp_text)
-            
-            last_message = data[-1]
-            if len(data) > 2:
-                last_tool = data[-2]
-                try:
-                    tool = last_tool['content']['parts'][0]['functionResponse']
-                    if tool['name'] == "create_playlist_from_queries":
-                        extracted_id = tool['response']['playlist_id']
-                except (KeyError, IndexError, TypeError):
-                    pass
-            
-            user_text = last_message['content']['parts'][0]['text']
 
-        if status < 200 or status >= 300:
-            raise HTTPException(status_code=502, detail=f"Error {status}: {resp_text}")
-
+        response = chat.send_message(request.message)
+        user_text = response.text
+        
+        # Update history (Frontend expects this)
         updated_history = request.history + [
             ChatHistoryItem(role="user", parts=[request.message]),
             ChatHistoryItem(role="model", parts=[user_text])
         ]
+        
+        # Save to Supabase if session_id is present
+        if session_id:
+            try:
+                # Save user message
+                supabase.table("chat_messages").insert({
+                    "session_id": session_id,
+                    "role": "user",
+                    "content": request.message
+                }).execute()
+                
+                # Save model message
+                supabase.table("chat_messages").insert({
+                    "session_id": session_id,
+                    "role": "model",
+                    "content": user_text
+                }).execute()
+                
+                # Update session updated_at
+                supabase.table("chat_sessions").update({
+                    "updated_at": datetime.now().isoformat()
+                }).eq("id", session_id).execute()
+                
+            except Exception as e:
+                print(f"Failed to save chat history: {e}")
+                # Don't fail the request, just log error
 
         return {
             "text": user_text,
-            "playlist_id": extracted_id,  
             "history": updated_history
         }
 
@@ -130,6 +150,7 @@ async def chat_endpoint(request: ChatRequest):
 
 @router.get("/models")
 def get_models():
+    check_api_key()
     try:
         models = []
         for m in client.models.list():
@@ -145,8 +166,9 @@ def get_models():
 
 @router.get("/test")
 async def test_ai_connection(q: str):
+    check_api_key()
     try:
-        response = await client.aio.models.generate_content(
+        response = client.models.generate_content(
             model=GEMINI_MODEL,
             contents=q
         )

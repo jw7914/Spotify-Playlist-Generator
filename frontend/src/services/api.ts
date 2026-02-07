@@ -60,12 +60,29 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   gemini: {
-    createSession: () => fetchJson(`${BASE_URL}/gemini/agent-session`),
-    chat: (message: string, history: BackendHistoryItem[]) => 
+    createSession: (userId: string, title?: string) => 
+      fetchJson<{ id: string; title: string; updated_at: string }>(`${BASE_URL}/gemini/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, title }),
+      }),
+
+    getSessions: (userId: string) => 
+      fetchJson<{ id: string; title: string; updated_at: string }[]>(`${BASE_URL}/gemini/sessions?user_id=${userId}`),
+
+    getSessionMessages: (sessionId: string) =>
+      fetchJson<{ id: string; role: string; content: string; created_at: string }[]>(`${BASE_URL}/gemini/sessions/${sessionId}/messages`),
+
+    deleteSession: (sessionId: string) =>
+      fetchJson(`${BASE_URL}/gemini/sessions/${sessionId}`, {
+        method: "DELETE",
+      }),
+
+    chat: (message: string, history: BackendHistoryItem[], sessionId?: string) => 
       fetchJson<GeminiChatResponse>(`${BASE_URL}/gemini/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, history }),
+        body: JSON.stringify({ message, history, session_id: sessionId }),
       }),
   },
   spotify: {
