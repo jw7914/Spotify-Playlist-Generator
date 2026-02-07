@@ -14,8 +14,11 @@ import {
   useDisclosure,
   Listbox,
   ListboxItem,
+  Autocomplete,
+  AutocompleteItem,
+  Divider,
 } from "@heroui/react";
-import { Send, Sparkles, Bot, User, Music, Disc3, History, Plus, Trash2 } from "lucide-react";
+import { Send, Sparkles, Bot, User, Music, Disc3, History, Plus, Trash2, Search } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 import { api, Message } from "../services/api";
@@ -445,7 +448,7 @@ export default function CreateWithAIPage() {
                   History
               </DrawerHeader>
               <DrawerBody className="p-0">
-                  <div className="p-4 pb-0">
+                  <div className="p-4 pb-0 flex flex-col gap-4">
                       <Button 
                         fullWidth 
                         className="bg-[#1DB954] text-black font-bold"
@@ -457,6 +460,62 @@ export default function CreateWithAIPage() {
                       >
                         New Chat
                       </Button>
+                      
+                      <Divider className="my-2 bg-white/10" />
+
+                      <Autocomplete 
+                        aria-label="Search History"
+                        placeholder="Search chats..."
+                        startContent={<Search size={16} className="text-zinc-400" />}
+                        defaultItems={sessions}
+                        variant="bordered"
+                        classNames={{
+                           base: "max-w-full",
+                           listboxWrapper: "max-h-[320px]",
+                           selectorButton: "text-zinc-500"
+                        }}
+                        inputProps={{
+                          classNames: {
+                            input: "ml-1",
+                            inputWrapper: "border-zinc-700 bg-black/20 hover:border-zinc-500 text-white",
+                          },
+                        }}
+                        listboxProps={{
+                          hideSelectedIcon: true,
+                          itemClasses: {
+                            base: [
+                              "text-white",
+                              "data-[hover=true]:bg-zinc-800",
+                              "data-[hover=true]:text-white",
+                              "data-[selectable=true]:focus:bg-zinc-800",
+                              "data-[focus-visible=true]:ring-zinc-500",
+                            ],
+                          },
+                        }}
+                        popoverProps={{
+                           classNames: {
+                               base: "bg-zinc-900 border border-zinc-800",
+                               content: "bg-zinc-900 border border-zinc-800",
+                           }
+                        }}
+                        onSelectionChange={(key) => {
+                            if (key) {
+                                handleSessionSelect(String(key));
+                                onClose();
+                            }
+                        }}
+                      >
+                        {(item) => (
+                          <AutocompleteItem key={item.id} textValue={item.title}>
+                            <div className="flex flex-col">
+                              <span className="text-sm truncate">{item.title}</span>
+                              <span className="text-[10px] text-zinc-500">{new Date(item.updated_at).toLocaleDateString()}</span>
+                            </div>
+                          </AutocompleteItem>
+                        )}
+                      </Autocomplete>
+
+                      <Divider className="my-2 bg-white/10" />
                   </div>
                   <ScrollShadow className="h-full p-2">
                           <Listbox 
