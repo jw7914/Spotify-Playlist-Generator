@@ -30,6 +30,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // If we are on the logout page, do not attempt to fetch user
+    // This prevents a race condition where the auth check might succeed via cookies
+    // before the logout logic converts them
+    if (window.location.pathname === "/logout") {
+      setIsLoading(false);
+      return;
+    }
+
     const fetchUser = async () => {
       try {
         const res = await fetch("/api/spotify/me");
