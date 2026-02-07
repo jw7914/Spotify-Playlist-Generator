@@ -8,5 +8,6 @@ dependencies = [
     "fastapi[standard]>=0.128.0",
     "google-genai>=1.56.0",
     "python-dotenv>=1.2.1",
+    "supabase>=2.27.3",
     "uvicorn>=0.40.0",
 ]
