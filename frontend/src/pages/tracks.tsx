@@ -93,7 +93,7 @@ export default function PlaylistDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const { isOpen, onOpen, onOpenChange, onClose } = useDisclosure();
   const [trackToDelete, setTrackToDelete] = useState<{ uri: string; name: string; id: string } | null>(null);
   const [deleteStatus, setDeleteStatus] = useState<'idle' | 'processing' | 'error'>('idle');
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
@@ -132,23 +132,25 @@ export default function PlaylistDetailsPage() {
 
     setDeleteStatus('processing');
     try {
-      await api.spotify.removeTrackFromPlaylist(playlist.id, trackToDelete.uri);
+      await api.spotify.removeTracksFromPlaylist(playlist.id, [trackToDelete.uri]);
       setToast({ message: `Removed "${trackToDelete.name}" from playlist.`, type: 'success' });
       // Optimistically update the UI or refetch playlist
       setPlaylist(prev => {
         if (!prev) return null;
+        // Correct implementation to match inline logic
         const updatedItems = prev.tracks.items.filter(item => item.track.id !== trackToDelete.id);
         return {
           ...prev,
           tracks: {
             ...prev.tracks,
             items: updatedItems,
-            total: updatedItems.length,
+            total: prev.tracks.total - 1,
           }
         };
       });
-      onOpenChange(false); // Close modal
+      onClose(); // Close modal using useDisclosure's onClose
       setTrackToDelete(null);
+      setDeleteStatus('idle'); // Reset for next time
     } catch (err) {
       console.error("Failed to remove track:", err);
       setDeleteStatus('error');
@@ -400,36 +402,7 @@ export default function PlaylistDetailsPage() {
                         </Button>
                         <Button 
                         color="danger" 
-                        onPress={() => {
-                            if (playlist && trackToDelete) {
-                                setDeleteStatus('processing');
-                                api.spotify.removeTracksFromPlaylist(playlist.id, [trackToDelete.uri])
-                                    .then(() => {
-                                        // Update local state
-                                        setPlaylist((prev) => {
-                                            if (!prev) return null;
-                                            return {
-                                                ...prev,
-                                                tracks: {
-                                                ...prev.tracks,
-                                                items: prev.tracks.items.filter((t) => t.track.id !== trackToDelete.id),
-                                                total: prev.tracks.total - 1
-                                                }
-                                            };
-                                        });
-                                        // Close modal and show success toast
-                                        onClose();
-                                        setToast({ message: "Track removed from playlist", type: "success" });
-                                        setDeleteStatus('idle'); // Reset for next time
-                                    })
-                                    .catch((err) => {
-                                        console.error("Failed to delete track:", err);
-                                        setDeleteStatus('error');
-                                        // Optional: show error toast immediately? 
-                                        // User logic: "Keep modal open, set deleteStatus to error" - implemented above
-                                    });
-                            }
-                        }}
+                        onPress={handleDeleteTrack}
                         >
                         Remove
                         </Button>
