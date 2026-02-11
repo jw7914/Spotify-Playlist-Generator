@@ -383,7 +383,7 @@ export default function PlaylistDetailsPage() {
               </ModalHeader>
               <ModalBody>
                 {deleteStatus === 'idle' && (
-                  <p>Are you sure you want to remove <span className="font-bold">{trackToDelete?.name}</span> from this playlist?</p>
+                  <p>Are you sure you want to remove <span className="font-bold">"{trackToDelete?.name}"</span> from this playlist?</p>
                 )}
                 {deleteStatus === 'processing' && (
                    <div className="flex justify-center py-4">
