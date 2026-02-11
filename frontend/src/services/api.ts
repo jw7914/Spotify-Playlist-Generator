@@ -149,5 +149,14 @@ export const api = {
             redirect: "manual"
         });
     },
+
+    removeTracksFromPlaylist: (playlistId: string, uris: string[]) => {
+        return fetchJson<any>(`${BASE_URL}/spotify/playlists/${playlistId}/tracks`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uris }),
+            redirect: "manual"
+        });
+    },
   }
 };

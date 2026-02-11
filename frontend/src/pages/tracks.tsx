@@ -11,14 +11,24 @@ import {
   TableCell,
   Skeleton,
   User,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  useDisclosure,
 } from "@heroui/react";
 import {
   ArrowLeft,
   Clock,
   ExternalLink,
+  Trash2,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 
 import { api, AuthError } from "../services/api";
+import { useAuth } from "../hooks/useAuth";
 
 // --- Interfaces based on Spotify API Structure ---
 
@@ -54,7 +64,7 @@ interface PlaylistDetails {
   name: string;
   description: string;
   images: { url: string }[] | null;
-  owner: { display_name: string };
+  owner: { display_name: string; id: string };
   followers: { total: number };
   tracks: {
     items: PlaylistItem[];
@@ -82,10 +92,22 @@ const formatDate = (dateString: string) => {
 export default function PlaylistDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const [trackToDelete, setTrackToDelete] = useState<{ uri: string; name: string; id: string } | null>(null);
+  const [deleteStatus, setDeleteStatus] = useState<'idle' | 'processing' | 'error'>('idle');
+  const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
   const [playlist, setPlaylist] = useState<PlaylistDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (toast) {
+        const timer = setTimeout(() => setToast(null), 3000);
+        return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   useEffect(() => {
     if (!id) return;
@@ -105,6 +127,35 @@ export default function PlaylistDetailsPage() {
       .finally(() => setLoading(false));
   }, [id, navigate]);
 
+  const handleDeleteTrack = async () => {
+    if (!playlist || !trackToDelete) return;
+
+    setDeleteStatus('processing');
+    try {
+      await api.spotify.removeTrackFromPlaylist(playlist.id, trackToDelete.uri);
+      setToast({ message: `Removed "${trackToDelete.name}" from playlist.`, type: 'success' });
+      // Optimistically update the UI or refetch playlist
+      setPlaylist(prev => {
+        if (!prev) return null;
+        const updatedItems = prev.tracks.items.filter(item => item.track.id !== trackToDelete.id);
+        return {
+          ...prev,
+          tracks: {
+            ...prev.tracks,
+            items: updatedItems,
+            total: updatedItems.length,
+          }
+        };
+      });
+      onOpenChange(false); // Close modal
+      setTrackToDelete(null);
+    } catch (err) {
+      console.error("Failed to remove track:", err);
+      setDeleteStatus('error');
+      setToast({ message: `Failed to remove "${trackToDelete.name}".`, type: 'error' });
+    }
+  };
+
   if (error) {
     return (
       <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4">
@@ -120,7 +171,14 @@ export default function PlaylistDetailsPage() {
   if (loading || !playlist) {
     return (
       <div className="min-h-screen bg-black text-white p-8 max-w-7xl mx-auto space-y-8">
-        <div className="flex gap-6 items-end">
+        <div className="relative z-10 p-6 flex items-end gap-6 h-full bg-gradient-to-t from-black via-black/50 to-transparent">
+        {/* Toast Notification */}
+        {toast && (
+            <div className={`fixed bottom-8 right-8 z-50 px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 border ${toast.type === "success" ? "bg-zinc-900 border-green-500/50 text-white" : "bg-red-900/90 border-red-500/50 text-white"} animate-in fade-in slide-in-from-bottom-4 duration-300`}>
+                {toast.type === "success" ? <CheckCircle className="text-green-500" size={24} /> : <XCircle className="text-red-500" size={24} />}
+                <span className="font-medium">{toast.message}</span>
+            </div>
+        )}
           <Skeleton className="rounded-lg w-52 h-52 bg-zinc-800" />
           <div className="w-full space-y-3">
             <Skeleton className="h-4 w-20 rounded-lg bg-zinc-800" />
@@ -148,6 +206,14 @@ export default function PlaylistDetailsPage() {
           <ArrowLeft size={20} className="text-white" />
         </button>
       </div>
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed bottom-8 right-8 z-50 px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 border ${toast.type === "success" ? "bg-zinc-900 border-green-500/50 text-white" : "bg-red-900/90 border-red-500/50 text-white"} animate-in fade-in slide-in-from-bottom-4 duration-300`}>
+            {toast.type === "success" ? <CheckCircle className="text-green-500" size={24} /> : <XCircle className="text-red-500" size={24} />}
+            <span className="font-medium">{toast.message}</span>
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-6">
         {/* --- Playlist Header --- */}
@@ -225,6 +291,10 @@ export default function PlaylistDetailsPage() {
             <TableColumn className="w-20">
               <Clock size={16} />
             </TableColumn>
+            <TableColumn className="w-10">
+              {/* Empty column for alignment/delete button */}
+              <span className="sr-only">Actions</span>
+            </TableColumn>
           </TableHeader>
           <TableBody emptyContent="No tracks found in this playlist.">
             {playlist.tracks.items
@@ -272,11 +342,104 @@ export default function PlaylistDetailsPage() {
                   <TableCell className="text-zinc-400 text-sm font-variant-numeric tabular-nums">
                     {formatDuration(item.track.duration_ms)}
                   </TableCell>
+
+                  <TableCell>
+                    {playlist.owner.id === user?.id && (
+                      <Button
+                        isIconOnly
+                        variant="light"
+                        color="danger"
+                        size="sm"
+                        onPress={() => {
+                           setTrackToDelete({ uri: item.track.uri, name: item.track.name, id: item.track.id });
+                           setDeleteStatus('idle');
+                           onOpen();
+                        }}
+                      >
+                        <Trash2 size={16} />
+                      </Button>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
           </TableBody>
         </Table>
       </main>
+
+      {/* Delete Confirmation Modal */}
+      <Modal 
+        isOpen={isOpen} 
+        onOpenChange={onOpenChange}
+        className="dark text-white bg-zinc-900 border border-zinc-800"
+        backdrop="blur"
+      >
+        <ModalContent>
+        {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                {deleteStatus === 'error' ? 'Error' : 'Remove from Playlist'}
+              </ModalHeader>
+              <ModalBody>
+                {deleteStatus === 'idle' && (
+                  <p>Are you sure you want to remove <span className="font-bold">{trackToDelete?.name}</span> from this playlist?</p>
+                )}
+                {deleteStatus === 'processing' && (
+                   <div className="flex justify-center py-4">
+                      <p>Removing track...</p>
+                   </div>
+                )}
+                {deleteStatus === 'error' && (
+                  <p className="text-red-500">Failed to remove track. Please try again.</p>
+                )}
+              </ModalBody>
+              <ModalFooter>
+                {deleteStatus !== 'processing' && (
+                    <>
+                        <Button color="default" variant="light" onPress={onClose}>
+                        Cancel
+                        </Button>
+                        <Button 
+                        color="danger" 
+                        onPress={() => {
+                            if (playlist && trackToDelete) {
+                                setDeleteStatus('processing');
+                                api.spotify.removeTracksFromPlaylist(playlist.id, [trackToDelete.uri])
+                                    .then(() => {
+                                        // Update local state
+                                        setPlaylist((prev) => {
+                                            if (!prev) return null;
+                                            return {
+                                                ...prev,
+                                                tracks: {
+                                                ...prev.tracks,
+                                                items: prev.tracks.items.filter((t) => t.track.id !== trackToDelete.id),
+                                                total: prev.tracks.total - 1
+                                                }
+                                            };
+                                        });
+                                        // Close modal and show success toast
+                                        onClose();
+                                        setToast({ message: "Track removed from playlist", type: "success" });
+                                        setDeleteStatus('idle'); // Reset for next time
+                                    })
+                                    .catch((err) => {
+                                        console.error("Failed to delete track:", err);
+                                        setDeleteStatus('error');
+                                        // Optional: show error toast immediately? 
+                                        // User logic: "Keep modal open, set deleteStatus to error" - implemented above
+                                    });
+                            }
+                        }}
+                        >
+                        Remove
+                        </Button>
+                    </>
+                )}
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </div>
   );
 }

@@ -318,7 +318,10 @@ def get_playlist_details(playlist_id: str, request: Request):
         "name": data.get("name"),
         "description": data.get("description"),
         "images": data.get("images", []),
-        "owner": {"display_name": data.get("owner", {}).get("display_name")},
+        "owner": {
+            "display_name": data.get("owner", {}).get("display_name"),
+            "id": data.get("owner", {}).get("id")
+        },
         "followers": {"total": data.get("followers", {}).get("total")},
         "external_urls": (data.get("external_urls") or {}).get("spotify"),
         "tracks": {"total": tracks_data.get("total"), "items": formatted_tracks}
@@ -447,6 +450,54 @@ def add_tracks_to_playlist(playlist_id: str, body: AddTracksRequest, request: Re
     try:
         data_bytes = json.dumps({"uris": body.uris}).encode("utf-8")
         req = urllib.request.Request(url, data=data_bytes, headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as he:
+        if he.code == 401: return RedirectResponse(url="/api/auth/login")
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+
+    if new_cookie_needed:
+        resp = JSONResponse(data)
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+
+    return data
+
+@router.delete("/playlists/{playlist_id}/tracks")
+def remove_tracks_from_playlist(playlist_id: str, body: AddTracksRequest, request: Request):
+    """
+    Remove tracks from a playlist.
+    Expects body.uris to be a list of Spotify track URIs to remove.
+    """
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token: return RedirectResponse(url="/api/auth/login")
+
+    try: expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except: expires_at = 0
+
+    new_cookie_needed = False
+    
+    if datetime.now().timestamp() > expires_at:
+        token_data = handle_token_refresh(refresh_token)
+        if not token_data: return RedirectResponse(url="/api/auth/login")
+        access_token = token_data.get("access_token")
+        expires_at = datetime.now().timestamp() + (token_data.get("expires_in") or 0)
+        new_cookie_needed = True
+
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+    url = f"{API_BASE_URL}/playlists/{playlist_id}/tracks"
+    
+    # Spotify API expects: { "tracks": [{ "uri": "spotify:track:..." }] }
+    tracks_payload = [{"uri": uri} for uri in body.uris]
+    payload = {"tracks": tracks_payload}
+
+    try:
+        data_bytes = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=data_bytes, headers=headers, method="DELETE")
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as he:
