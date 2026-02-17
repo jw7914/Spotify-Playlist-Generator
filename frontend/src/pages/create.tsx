@@ -22,6 +22,7 @@ import { Send, Sparkles, Bot, User, Music, Disc3, History, Plus, Trash2, Search 
 import ReactMarkdown from "react-markdown";
 
 import { api, Message } from "../services/api";
+import { useAuth } from "@/hooks/useAuth";
 
 // Backend expects this structure for history
 interface BackendHistoryItem {
@@ -41,7 +42,7 @@ export default function CreateWithAIPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Session State
-  const [user, setUser] = useState<any>(null);
+  const { user, isLoading: isAuthLoading } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
@@ -62,19 +63,10 @@ export default function CreateWithAIPage() {
 
   // Fetch User and Sessions on Mount
   useEffect(() => {
-    const init = async () => {
-      try {
-        const userData = await api.spotify.getMe();
-        if (userData && userData.user) {
-            setUser(userData.user);
-            loadSessions(userData.user.id);
-        }
-      } catch (e) {
-        console.error("Failed to init", e);
-      }
-    };
-    init();
-  }, []);
+    if (user) {
+        loadSessions(user.id);
+    }
+  }, [user]);
 
   const loadSessions = async (userId: string) => {
       try {

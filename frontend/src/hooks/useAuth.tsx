@@ -5,7 +5,7 @@ import {
   useEffect,
   ReactNode,
 } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 export interface User {
   id: string;
@@ -28,6 +28,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     // If we are on the logout page, do not attempt to fetch user
@@ -57,7 +58,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     fetchUser();
-  }, []);
+  }, [location.pathname]);
 
   const logout = async () => {
     try {
