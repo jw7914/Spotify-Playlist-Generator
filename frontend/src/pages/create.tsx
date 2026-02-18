@@ -42,7 +42,7 @@ export default function CreateWithAIPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Session State
-  const { user, isLoading: isAuthLoading } = useAuth();
+  const { user } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
