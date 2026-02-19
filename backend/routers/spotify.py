@@ -513,6 +513,125 @@ def remove_tracks_from_playlist(playlist_id: str, body: AddTracksRequest, reques
     return data
 
 
+# --- Backend helpers (for server-side use, e.g. Gemini) ---
+
+def create_playlist(
+    name: str,
+    description: str | None = None,
+    public: bool = False,
+    request: Request | None = None,
+):
+    """Create a playlist. Requires request for cookies (access_token)."""
+    if not request:
+        raise HTTPException(status_code=401, detail="Request required for authentication")
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except Exception:
+        expires_at = 0
+
+    if datetime.now().timestamp() > expires_at:
+        token_data = handle_token_refresh(refresh_token)
+        if not token_data:
+            raise HTTPException(status_code=401, detail="Token refresh failed")
+        access_token = token_data.get("access_token")
+
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+    user_url = f"{API_BASE_URL}/me"
+    try:
+        req = urllib.request.Request(user_url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            user_data = json.loads(resp.read().decode("utf-8"))
+            user_id = user_data.get("id")
+    except urllib.error.HTTPError as he:
+        if he.code == 401:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        raise HTTPException(status_code=502, detail=f"Failed to get user ID: {he}")
+
+    url = f"{API_BASE_URL}/users/{user_id}/playlists"
+    payload = {
+        "name": name,
+        "description": description or "",
+        "public": public,
+        "collaborative": False,
+    }
+    try:
+        data_bytes = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=data_bytes, headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as he:
+        if he.code == 401:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+
+
+def search_spotify_songs(
+    query: str,
+    type: str = "track",
+    limit: int = 1,
+):
+    """Search Spotify (uses app token, no user auth)."""
+    access_token = get_app_token()
+    if not access_token:
+        raise HTTPException(status_code=500, detail="Failed to get app token")
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {"q": query, "type": type, "limit": limit}
+    url = f"{API_BASE_URL}/search?{urllib.parse.urlencode(params)}"
+    try:
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+
+
+def add_tracks_to_playlist(
+    playlist_id: str,
+    track_ids: list[str],
+    request: Request | None = None,
+):
+    """Add tracks to a playlist. Requires request for cookies (access_token)."""
+    if not request:
+        raise HTTPException(status_code=401, detail="Request required for authentication")
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except Exception:
+        expires_at = 0
+
+    if datetime.now().timestamp() > expires_at:
+        token_data = handle_token_refresh(refresh_token)
+        if not token_data:
+            raise HTTPException(status_code=401, detail="Token refresh failed")
+        access_token = token_data.get("access_token")
+
+    uris = [f"spotify:track:{tid}" for tid in track_ids]
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+    url = f"{API_BASE_URL}/playlists/{playlist_id}/tracks"
+    try:
+        data_bytes = json.dumps({"uris": uris}).encode("utf-8")
+        req = urllib.request.Request(url, data=data_bytes, headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as he:
+        if he.code == 401:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+
 
 @router.get("/me")
 def get_me(request: Request):
