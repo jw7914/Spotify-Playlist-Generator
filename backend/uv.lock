@@ -47,6 +47,7 @@ dependencies = [
     { name = "google" },
     { name = "google-genai" },
     { name = "python-dotenv" },
+    { name = "redis" },
     { name = "supabase" },
     { name = "uvicorn" },
 ]
@@ -57,6 +58,7 @@ requires-dist = [
     { name = "google", specifier = ">=3.0.0" },
     { name = "google-genai", specifier = ">=1.56.0" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
+    { name = "redis", specifier = ">=7.2.0" },
     { name = "supabase", specifier = ">=2.27.3" },
     { name = "uvicorn", specifier = ">=0.40.0" },
 ]
@@ -1343,6 +1345,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/15/fe/489caa56c582b1b0fe863acbedcf5a56309606a85c5fcacbeae9f3a279ed/realtime-2.27.3.tar.gz", hash = "sha256:02b082243107656a5ef3fb63e8e2ab4c40bc199abb45adb8a42ed63f089a1041", size = 18710, upload-time = "2026-02-03T16:34:59.946Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b4/90/09d888104e6eca1883d56bd7adcc66acd0df9fbdb22d602658bd3f20f531/realtime-2.27.3-py3-none-any.whl", hash = "sha256:f571115f86988e33c41c895cb3fba2eaa1b693aeaede3617288f44274ca90f43", size = 22367, upload-time = "2026-02-03T16:34:59.061Z" },
+]
+
+[[package]]
+name = "redis"
+version = "7.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/9f/32/6fac13a11e73e1bc67a2ae821a72bfe4c2d8c4c48f0267e4a952be0f1bae/redis-7.2.0.tar.gz", hash = "sha256:4dd5bf4bd4ae80510267f14185a15cba2a38666b941aff68cccf0256b51c1f26", size = 4901247, upload-time = "2026-02-16T17:16:22.797Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/86/cf/f6180b67f99688d83e15c84c5beda831d1d341e95872d224f87ccafafe61/redis-7.2.0-py3-none-any.whl", hash = "sha256:01f591f8598e483f1842d429e8ae3a820804566f1c73dca1b80e23af9fba0497", size = 394898, upload-time = "2026-02-16T17:16:20.693Z" },
 ]
 
 [[package]]
