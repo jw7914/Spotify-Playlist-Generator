@@ -31,3 +31,12 @@ confirm_and_create_playlist = {
         "required": []
     }
 }
+delete_proposed_playlist = {
+    "name": "deleteProposedPlaylist",
+    "description": "Call this when the user rejects or wants to discard the currently proposed playlist (e.g. said 'no', 'never mind', 'cancel it', 'delete it'). Clears the cached proposal from the last proposePlaylist call. Do not call this if no proposal exists.",
+    "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+    }
+}

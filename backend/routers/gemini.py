@@ -10,7 +10,7 @@ from backend.routers.gemini_tools import *
 from backend.routers.spotify import (
     create_playlist,
     search_spotify_songs,
-    add_tracks_to_playlist
+    add_tracks_to_playlist,
 )
 import redis
 import json
@@ -135,6 +135,7 @@ async def chat_endpoint(req: Request, request: ChatRequest):
                         "function_declarations": [
                             propose_playlist,
                             confirm_and_create_playlist,
+                            delete_proposed_playlist
                         ]
                     }
                 ],
@@ -234,38 +235,17 @@ async def chat_endpoint(req: Request, request: ChatRequest):
             elif function_name == "confirmAndCreatePlaylist" and not session_state.get("pending_playlist"):
                 user_text = "There's no pending playlist to create. Ask me to propose one first, then confirm when you're ready."
 
-            elif function_name == "createPlaylist" and session_state.get("pending_playlist"):
-                proposal = session_state["pending_playlist"]
-                track_ids = proposal.get("track_ids") or []
-                playlist = create_playlist(
-                    name=proposal["name"],
-                    description=proposal.get("description"),
-                    public=False,
-                    request=req,
-                )
-
-                # 2️⃣ Add tracks using cached track IDs from Redis (no search)
-                if track_ids:
-                    add_tracks_to_playlist(
-                        playlist_id=playlist["id"],
-                        track_ids=track_ids,
-                        request=req,
-                    )
-
-
-       
-
-                # Clear session and persist to Redis
-                session_state["awaiting_confirmation"] = False
+            elif function_name == "deleteProposedPlaylist" and session_state.get("pending_playlist"):
                 session_state["pending_playlist"] = None
+                session_state["awaiting_confirmation"] = False
                 save_session(session_id, session_state)
+                user_text = "The proposed playlist has been discarded."
 
-                ext = (playlist.get("external_urls") or {}).get("spotify", "")
-                user_text = (
-                    f'Playlist "{playlist["name"]}" created successfully.\n'
-                    f'Added {len(track_ids)} tracks.\n'
-                    + (f'View on Spotify: {ext}' if ext else '')
-                )
+            elif function_name == "deleteProposedPlaylist" and not session_state.get("pending_playlist"):
+                user_text = "There's no pending playlist to delete."
+
+            elif function_name == "confirmAndCreatePlaylist" and session_state.get("awaiting_confirmation"):
+                user_text = "Please respond with 'yes', 'create it', 'sounds good', or 'go ahead' to confirm the proposed playlist, or 'no', 'cancel', 'never mind' to reject it."
         # -------------------------
         # Normal Text Response
         # -------------------------
