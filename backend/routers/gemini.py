@@ -327,22 +327,3 @@ def get_models():
         return {"count": len(models), "models": models}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/test")
-async def test_ai_connection(q: str):
-    check_api_key()
-    try:
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=q
-        )
-        return {
-            "status": "ok",
-            "query": q,
-            "ai_response": response.text
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "detail": str(e)
-        }
