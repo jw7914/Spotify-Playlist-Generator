@@ -20,6 +20,7 @@ import {
 } from "@heroui/react";
 import { Send, Sparkles, Bot, User, Music, Disc3, History, Plus, Trash2, Search } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { useNavigate } from "react-router-dom";
 
 import { api, Message } from "../services/api";
 import { useAuth } from "@/hooks/useAuth";
@@ -37,6 +38,7 @@ interface Session {
 }
 
 export default function CreateWithAIPage() {
+  const navigate = useNavigate();
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -264,7 +266,12 @@ export default function CreateWithAIPage() {
         {/* Chat History */}
         <ScrollShadow className="flex-1 rounded-2xl bg-zinc-900/30 border border-white/5 backdrop-blur-sm p-4 md:p-6 mb-4 overflow-y-auto">
           <div className="flex flex-col gap-6 min-h-0">
-            {messages.map((msg) => (
+            {messages.map((msg) => {
+              const spotifyMatch = msg.content.match(/(?:View on Spotify:\s*)?(https:\/\/open\.spotify\.com\/playlist\/[a-zA-Z0-9]+)/i);
+              const cleanText = spotifyMatch ? msg.content.replace(spotifyMatch[0], "").trim() : msg.content;
+              const spotifyUrl = spotifyMatch ? spotifyMatch[1] : null;
+
+              return (
               <div
                 key={msg.id}
                 className={`flex gap-4 max-w-2xl ${
@@ -323,8 +330,26 @@ export default function CreateWithAIPage() {
                         ),
                       }}
                     >
-                      {msg.content}
+                      {cleanText}
                     </ReactMarkdown>
+                    {spotifyUrl && (
+                      <div className="flex flex-col sm:flex-row gap-4 sm:gap-2 mt-3 w-full">
+                        <Button
+                          className="bg-[#1DB954] text-black font-bold flex-1"
+                          onPress={() => window.open(spotifyUrl, "_blank", "noopener,noreferrer")}
+                          startContent={<Music size={18} />}
+                        >
+                          View on Spotify
+                        </Button>
+                        <Button
+                          className="bg-zinc-700 text-white font-bold flex-1"
+                          onPress={() => navigate("/playlists")}
+                          startContent={<Disc3 size={18} />}
+                        >
+                          View My Playlists
+                        </Button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Rich Media: Playlist Preview Card */}
@@ -362,7 +387,8 @@ export default function CreateWithAIPage() {
                   )}
                 </div>
               </div>
-            ))}
+            );
+            })}
 
             {/* Loading Indicator */}
             {isLoading && (
