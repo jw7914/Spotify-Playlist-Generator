@@ -27,6 +27,7 @@ def get_session(user_id):
     return {
         "awaiting_confirmation": False,
         "pending_playlist": None,
+        "logged_in": True,
     }
 
 def save_session(user_id, session):
@@ -108,7 +109,17 @@ async def chat_endpoint(req: Request, request: ChatRequest):
         # Better: If session_id is provided, save.
         
         session_id = request.session_id #chat session 
-        session_state = get_session(session_id)
+        
+        # Only get session state from Redis if we have a valid session_id
+        if session_id:
+            session_state = get_session(session_id)
+        else:
+            # Default session state non-logged in or no session provided
+            session_state = {
+                "awaiting_confirmation": False,
+                "pending_playlist": None,
+                "logged_in": False,
+            }
 
         # Optimize history for Gemini
         formatted_history = []
@@ -186,7 +197,8 @@ async def chat_endpoint(req: Request, request: ChatRequest):
                     "tracks_display": tracks_display,
                 }
                 session_state["awaiting_confirmation"] = True
-                save_session(session_id, session_state)
+                if session_id:
+                    save_session(session_id, session_state)
 
                 lines = [
                     "Here's the playlist I propose (from Spotify search):",
@@ -222,7 +234,8 @@ async def chat_endpoint(req: Request, request: ChatRequest):
                         )
                     session_state["awaiting_confirmation"] = False
                     session_state["pending_playlist"] = None
-                    save_session(session_id, session_state)
+                    if session_id:
+                        save_session(session_id, session_state)
                     ext = (playlist.get("external_urls") or {}).get("spotify", "")
                     user_text = (
                         f'Playlist "{playlist["name"]}" created successfully.\n'
@@ -232,13 +245,17 @@ async def chat_endpoint(req: Request, request: ChatRequest):
                 except Exception as e:
                     user_text = f"Something went wrong creating the playlist: {e}"
 
+            elif function_name == "confirmAndCreatePlaylist" and not session_state.get("logged_in"):
+                user_text = "You must be logged in to create a playlist. Please log in to Spotify first."
+
             elif function_name == "confirmAndCreatePlaylist" and not session_state.get("pending_playlist"):
                 user_text = "There's no pending playlist to create. Ask me to propose one first, then confirm when you're ready."
 
             elif function_name == "deleteProposedPlaylist" and session_state.get("pending_playlist"):
                 session_state["pending_playlist"] = None
                 session_state["awaiting_confirmation"] = False
-                save_session(session_id, session_state)
+                if session_id:
+                    save_session(session_id, session_state)
                 user_text = "The proposed playlist has been discarded."
 
             elif function_name == "deleteProposedPlaylist" and not session_state.get("pending_playlist"):
