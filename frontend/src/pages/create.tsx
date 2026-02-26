@@ -382,39 +382,7 @@ export default function CreateWithAIPage() {
                     )}
                   </div>
 
-                  {/* Rich Media: Playlist Preview Card */}
-                  {msg.type === "playlist-preview" && msg.playlistData && (
-                    <Card className="max-w-xs bg-black/60 border border-white/10 mt-1">
-                      <CardBody className="flex flex-row gap-4 items-center p-3">
-                        <div className="w-12 h-12 rounded bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shrink-0">
-                          <Disc3
-                            className="text-white animate-spin-slow"
-                            size={20}
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-bold text-white">
-                            {msg.playlistData.name}
-                          </p>
-                          <p className="text-xs text-zinc-400">
-                            {msg.playlistData.trackCount} Songs • Ready to Sync
-                          </p>
-                        </div>
-                        <Button
-                          size="sm"
-                          color="success"
-                          variant="flat"
-                          isIconOnly
-                          onClick={() =>
-                            handleOpenPlaylist(msg.playlistData!.id)
-                          }
-                          isDisabled={!msg.playlistData.id}
-                        >
-                          <Music size={16} />
-                        </Button>
-                      </CardBody>
-                    </Card>
-                  )}
+                 
                 </div>
               </div>
             );
