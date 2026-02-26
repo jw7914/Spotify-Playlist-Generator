@@ -37,7 +37,10 @@ export const Navbar = () => {
     []
   );
 
-  const currentTab = navLinks.find((l) => pathname === l.href)?.key || "";
+  // If we are on /create/123, we still want to match the /create tab
+  const activeTabKey = pathname.startsWith("/create") 
+    ? "/create" 
+    : navLinks.find((l) => pathname === l.href)?.key || "";
 
   const handleNav = (href: string) => {
     navigate(href);
@@ -87,7 +90,7 @@ export const Navbar = () => {
       <NavbarContent className="hidden sm:flex gap-4" justify="center">
         <Tabs
           aria-label="Navigation"
-          selectedKey={currentTab}
+          selectedKey={activeTabKey}
           onSelectionChange={(key) => handleNav(key.toString())}
           variant="light"
           radius="full"
@@ -188,18 +191,21 @@ export const Navbar = () => {
       {/* --- Mobile Menu --- */}
       <NavbarMenu className="bg-black/95 pt-8 px-6">
         <div className="flex flex-col gap-6">
-          {navLinks.map((item, index) => (
+          {navLinks.map((item, index) => {
+            const isActive = pathname === item.href || (item.href === "/create" && pathname.startsWith("/create"));
+            return (
             <NavbarMenuItem key={`${item.key}-${index}`}>
               <button
                 className={`w-full text-left text-2xl font-semibold transition-colors py-2
-                  ${pathname === item.href ? "text-[#6A6BB5]" : "text-white hover:text-zinc-300"}
+                  ${isActive ? "text-[#6A6BB5]" : "text-white hover:text-zinc-300"}
                 `}
                 onClick={() => handleNav(item.href)}
               >
                 {item.title}
               </button>
             </NavbarMenuItem>
-          ))}
+            );
+          })}
         </div>
 
         <div className="border-t border-zinc-800 mt-8 pt-6 flex flex-col gap-4">

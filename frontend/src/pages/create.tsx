@@ -20,7 +20,7 @@ import {
 } from "@heroui/react";
 import { Send, Sparkles, Bot, User, Music, Disc3, History, Plus, Trash2, Search } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 import { api, Message } from "../services/api";
 import { useAuth } from "@/hooks/useAuth";
@@ -39,6 +39,7 @@ interface Session {
 
 export default function CreateWithAIPage() {
   const navigate = useNavigate();
+  const { sessionId } = useParams();
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -63,12 +64,28 @@ export default function CreateWithAIPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Fetch User and Sessions on Mount
+  // Fetch User and Sessions on Mount / URL Change
   useEffect(() => {
-    if (user) {
-        loadSessions(user.id);
-    }
-  }, [user]);
+    const initialize = async () => {
+      if (user) {
+        // Only load sessions list if we haven't already or if it's the first time
+        if (sessions.length === 0) {
+            await loadSessions(user.id);
+        }
+        
+        if (sessionId) {
+            if (sessionId !== currentSessionId) {
+                await loadSessionData(sessionId);
+            }
+        } else {
+            if (currentSessionId !== null) {
+                handleNewChat(false);
+            }
+        }
+      }
+    };
+    initialize();
+  }, [user, sessionId]);
 
   const loadSessions = async (userId: string) => {
       try {
@@ -76,6 +93,28 @@ export default function CreateWithAIPage() {
           setSessions(data);
       } catch (e) {
           console.error("Failed to load sessions", e);
+      }
+  };
+
+  const loadSessionData = async (sid: string) => {
+      setIsLoading(true);
+      try {
+          const msgs = await api.gemini.getSessionMessages(sid);
+          
+          const formattedMessages: Message[] = msgs.map(m => ({
+              id: m.id,
+              role: m.role === "model" ? "ai" : "user",
+              content: m.content,
+              type: "text"
+          }));
+          
+          setMessages([WELCOME_MESSAGE, ...formattedMessages]);
+          setCurrentSessionId(sid);
+      } catch (e) {
+          console.error("Failed to load session messages", e);
+          navigate("/create", { replace: true });
+      } finally {
+          setIsLoading(false);
       }
   };
 
@@ -103,49 +142,30 @@ export default function CreateWithAIPage() {
   };
 
   // --- Session Management ---
-  const handleNewChat = () => {
+  const handleNewChat = (shouldNavigate = true) => {
       setCurrentSessionId(null);
       setMessages([WELCOME_MESSAGE]);
       setInput("");
-      // Close drawer if on mobile? 
-      // For now keep it open or let user close
+      if (shouldNavigate) {
+          navigate("/create");
+      }
   };
 
-  const handleDeleteSession = async (sessionId: string) => {
+  const handleDeleteSession = async (sid: string) => {
       try {
-          await api.gemini.deleteSession(sessionId);
-          setSessions(prev => prev.filter(s => s.id !== sessionId));
+          await api.gemini.deleteSession(sid);
+          setSessions(prev => prev.filter(s => s.id !== sid));
           
-          // If deleted session was active, reset to new chat
-          if (currentSessionId === sessionId) {
-              handleNewChat();
+          if (currentSessionId === sid) {
+              handleNewChat(true);
           }
       } catch (e) {
           console.error("Failed to delete session", e);
       }
   };
 
-  const handleSessionSelect = async (sessionId: string) => {
-      setIsLoading(true);
-      try {
-          // Fetch messages
-          const msgs = await api.gemini.getSessionMessages(sessionId);
-          
-          // Convert to frontend format
-          const formattedMessages: Message[] = msgs.map(m => ({
-              id: m.id,
-              role: m.role === "model" ? "ai" : "user",
-              content: m.content,
-              type: "text" // Default to text, parsing for playlist could be added if stored in DB specifically
-          }));
-          
-          setMessages([WELCOME_MESSAGE, ...formattedMessages]);
-          setCurrentSessionId(sessionId);
-      } catch (e) {
-          console.error("Failed to load session messages", e);
-      } finally {
-          setIsLoading(false);
-      }
+  const handleSessionSelect = (sid: string) => {
+      navigate(`/create/${sid}`);
   };
 
   // --- Handle Sending ---
@@ -175,6 +195,9 @@ export default function CreateWithAIPage() {
             activeSessionId = newSession.id;
             setCurrentSessionId(activeSessionId);
             setSessions(prev => [newSession, ...prev]);
+            
+            // Sync URL with the new session
+            navigate(`/create/${newSession.id}`, { replace: true });
           } catch(e) {
               console.error("Failed to create session, proceeding without saving", e);
           }

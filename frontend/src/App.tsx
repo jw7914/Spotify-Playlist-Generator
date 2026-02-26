@@ -31,6 +31,7 @@ function App() {
         <Route element={<LoginPage />} path="/login" />
         <Route element={<LogoutPage />} path="/logout" />
         <Route element={<CreateWithAIPage />} path="/create" />
+        <Route element={<CreateWithAIPage />} path="/create/:sessionId" />
         <Route element={<NotFoundPage />} path="*" />
       </Routes>
     </AuthProvider>
