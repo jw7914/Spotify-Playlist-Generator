@@ -45,10 +45,17 @@ export default function CreateWithAIPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Session State
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
+
+  // Redirect if not logged in but trying to access a specific session
+  useEffect(() => {
+    if (!isAuthLoading && !isAuthenticated && sessionId) {
+      navigate("/create", { replace: true });
+    }
+  }, [isAuthLoading, isAuthenticated, sessionId, navigate]);
 
   // Initial Welcome Message
   const WELCOME_MESSAGE: Message = {
@@ -274,7 +281,7 @@ export default function CreateWithAIPage() {
                 <p className="text-xs text-zinc-400">Powered by Gemini & Spotify</p>
              </div>
           </div>
-          {user && (
+          {isAuthenticated && user && (
             <Button 
                 isIconOnly 
                 className="bg-[#1DB954] text-black" 
