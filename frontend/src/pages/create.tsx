@@ -2,8 +2,6 @@ import { useState, useRef, useEffect } from "react";
 import {
   Button,
   Input,
-  Card,
-  CardBody,
   Avatar,
   ScrollShadow,
   Chip,
