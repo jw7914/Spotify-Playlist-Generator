@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from google import genai
 from google.genai import types
 import os
@@ -11,6 +11,7 @@ from backend.routers.spotify import (
     create_playlist,
     search_spotify_songs,
     add_tracks_to_playlist,
+    get_current_user_id,
 )
 import redis
 import json
@@ -53,10 +54,10 @@ def check_api_key():
 # --- Session Management ---
 
 @router.post("/sessions", response_model=SessionResponse)
-def create_session(body: CreateSessionRequest):
+def create_session(body: CreateSessionRequest, user_id: str = Depends(get_current_user_id)):
     try:
         data = {
-            "user_id": body.user_id,
+            "user_id": user_id,
             "title": body.title or "New Chat"
         }
         response = supabase.table("chat_sessions").insert(data).execute()
@@ -67,7 +68,7 @@ def create_session(body: CreateSessionRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/sessions", response_model=list[SessionResponse])
-def get_sessions(user_id: str):
+def get_sessions(user_id: str = Depends(get_current_user_id)):
     try:
         response = supabase.table("chat_sessions").select("*").eq("user_id", user_id).order("updated_at", desc=True).execute()
         return response.data
@@ -75,16 +76,28 @@ def get_sessions(user_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/sessions/{session_id}/messages", response_model=list[MessageResponse])
-def get_session_messages(session_id: str):
+def get_session_messages(session_id: str, user_id: str = Depends(get_current_user_id)):
     try:
+        # First, ensure the session actually belongs to this user
+        session_res = supabase.table("chat_sessions").select("user_id").eq("id", session_id).execute()
+        if not session_res.data or session_res.data[0]["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Not authorized to access this session")
+
         response = supabase.table("chat_messages").select("*").eq("session_id", session_id).order("created_at", desc=False).execute()
         return response.data
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/sessions/{session_id}")
-def delete_session(session_id: str):
+def delete_session(session_id: str, user_id: str = Depends(get_current_user_id)):
     try:
+        # Ensure the session actually belongs to this user
+        session_res = supabase.table("chat_sessions").select("user_id").eq("id", session_id).execute()
+        if not session_res.data or session_res.data[0]["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Not authorized to delete this session")
+
         # Delete messages first (cascade should handle this if configured, but explicit is safer)
         supabase.table("chat_messages").delete().eq("session_id", session_id).execute()
         # Delete session
@@ -93,6 +106,8 @@ def delete_session(session_id: str):
              # It might be that the session didn't exist or was already deleted
              return {"message": "Session not found or already deleted"}
         return {"message": "Session deleted successfully"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

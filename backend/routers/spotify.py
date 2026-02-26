@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Request, Response, Depends
 from fastapi.responses import RedirectResponse, JSONResponse
 import urllib.parse
 import urllib.request
@@ -77,6 +77,43 @@ def handle_token_refresh(refresh_token: str):
     except Exception as e:
         print(f"Token refresh failed: {e}")
         return None
+
+# --- FastAPI Authentication Dependency ---
+def get_current_user_id(request: Request) -> str:
+    """FastAPI dependency to get the current authenticated user's Spotify ID."""
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Not authenticated. Please log in with Spotify.")
+
+    try:
+        expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except Exception:
+        expires_at = 0
+
+    if datetime.now().timestamp() > expires_at:
+        token_data = handle_token_refresh(refresh_token)
+        if not token_data:
+            raise HTTPException(status_code=401, detail="Session expired. Please log in again.")
+        access_token = token_data.get("access_token")
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    url = f"{API_BASE_URL}/me"
+    
+    try:
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return data.get("id")
+    except urllib.error.HTTPError as he:
+        if he.code == 401:
+            raise HTTPException(status_code=401, detail="Spotify token invalid or expired.")
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to verify user identity.")
+
 
 # --- Auth Routes ---
 
