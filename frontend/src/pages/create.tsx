@@ -139,13 +139,6 @@ export default function CreateWithAIPage() {
     }));
   };
 
-  // --- Handle opening spotify playlist ---
-  const handleOpenPlaylist = (playlistId: string) => {
-    if (!playlistId) return;
-    const spotifyUrl = `https://open.spotify.com/playlist/${playlistId}`;
-    window.open(spotifyUrl, "_blank", "noopener,noreferrer");
-  };
-
   // --- Session Management ---
   const handleNewChat = (shouldNavigate = true) => {
       setCurrentSessionId(null);
