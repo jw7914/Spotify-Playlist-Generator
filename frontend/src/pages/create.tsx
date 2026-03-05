@@ -167,20 +167,24 @@ export default function CreateWithAIPage() {
   };
 
   // --- Handle Sending ---
-  const handleSend = async () => {
-    if (!input.trim()) return;
+  const handleSend = async (textOverride?: string | any) => {
+    const isOverride = typeof textOverride === 'string';
+    const textToSend = isOverride ? textOverride : input;
+    if (!textToSend.trim()) return;
 
     // 1. Add User Message to UI
     const userMsg: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: input,
+      content: textToSend,
       type: "text",
     };
 
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
-    setInput("");
+    if (!isOverride) {
+      setInput("");
+    }
     setIsLoading(true);
 
     let activeSessionId = currentSessionId;
@@ -221,6 +225,7 @@ export default function CreateWithAIPage() {
         playlistData: isPlaylistContext
           ? { name: "Generated Mix", trackCount: "20+", id: data.playlist_id } // Placeholder
           : undefined,
+        isAwaitingConfirmation: data.is_awaiting_confirmation,
       };
 
       setMessages((prev) => [...prev, aiResponse]);
@@ -287,7 +292,7 @@ export default function CreateWithAIPage() {
         {/* Chat History */}
         <ScrollShadow className="flex-1 rounded-2xl bg-zinc-900/30 border border-white/5 backdrop-blur-sm p-4 md:p-6 mb-4 overflow-y-auto">
           <div className="flex flex-col gap-6 min-h-0">
-            {messages.map((msg) => {
+            {messages.map((msg, index) => {
               const spotifyMatch = msg.content.match(/(?:View on Spotify:\s*)?(https:\/\/open\.spotify\.com\/playlist\/[a-zA-Z0-9]+)/i);
               const cleanText = spotifyMatch ? msg.content.replace(spotifyMatch[0], "").trim() : msg.content;
               const spotifyUrl = spotifyMatch ? spotifyMatch[1] : null;
@@ -368,6 +373,24 @@ export default function CreateWithAIPage() {
                           startContent={<Disc3 size={18} />}
                         >
                           View My Playlists
+                        </Button>
+                      </div>
+                    )}
+                    {msg.isAwaitingConfirmation && index === messages.length - 1 && (
+                      <div className="flex flex-col sm:flex-row gap-4 sm:gap-2 mt-3 w-full">
+                        <Button
+                          className="bg-[#1DB954] text-black font-bold flex-1"
+                          onPress={() => handleSend("Yes, create it")}
+                          isDisabled={isLoading}
+                        >
+                          Yes, Create It
+                        </Button>
+                        <Button
+                          className="bg-zinc-700 text-white font-bold flex-1"
+                          onPress={() => handleSend("No, cancel")}
+                          isDisabled={isLoading}
+                        >
+                          Cancel
                         </Button>
                       </div>
                     )}

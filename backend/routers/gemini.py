@@ -320,7 +320,8 @@ async def chat_endpoint(req: Request, request: ChatRequest):
 
         return {
             "text": user_text,
-            "history": updated_history
+            "history": updated_history,
+            "is_awaiting_confirmation": session_state.get("awaiting_confirmation", False)
         }
 
     except Exception as e:
