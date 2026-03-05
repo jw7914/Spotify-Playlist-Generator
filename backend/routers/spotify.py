@@ -228,26 +228,23 @@ def get_playlists(request: Request):
     expires_at_raw = request.cookies.get("expires_at")
 
     if not access_token:
-        return RedirectResponse(url="/api/auth/login")
+        raise HTTPException(status_code=401, detail="Not authenticated")
 
     try:
         expires_at = float(expires_at_raw) if expires_at_raw else 0
     except Exception:
         expires_at = 0
 
+    new_cookie_needed = False
     if datetime.now().timestamp() > expires_at:
         token_data = handle_token_refresh(refresh_token)
         if not token_data:
-             return RedirectResponse(url="/api/auth/login")
+             raise HTTPException(status_code=401, detail="Session expired")
         
         access_token = token_data.get("access_token")
         expires_in = token_data.get("expires_in")
         expires_at = datetime.now().timestamp() + (expires_in or 0)
-
-        resp = RedirectResponse(url="/api/playlists")
-        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
-        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
-        return resp
+        new_cookie_needed = True
 
     headers = {"Authorization": f"Bearer {access_token}"}
     items = []
@@ -281,7 +278,11 @@ def get_playlists(request: Request):
             "external_url": (p.get("external_urls") or {}).get("spotify"),
         })
 
-    return {"playlists": playlists}
+    resp = JSONResponse({"playlists": playlists})
+    if new_cookie_needed:
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+    return resp
 
 @router.get("/playlists/{playlist_id}")
 def get_playlist_details(playlist_id: str, request: Request):
@@ -290,25 +291,22 @@ def get_playlist_details(playlist_id: str, request: Request):
     expires_at_raw = request.cookies.get("expires_at")
 
     if not access_token:
-        return RedirectResponse(url="/api/auth/login")
+        raise HTTPException(status_code=401, detail="Not authenticated")
 
     try:
         expires_at = float(expires_at_raw) if expires_at_raw else 0
     except Exception:
         expires_at = 0
 
+    new_cookie_needed = False
     if datetime.now().timestamp() > expires_at:
         token_data = handle_token_refresh(refresh_token)
         if not token_data:
-             return RedirectResponse(url="/api/auth/login")
+             raise HTTPException(status_code=401, detail="Session expired")
         
         access_token = token_data.get("access_token")
         expires_at = datetime.now().timestamp() + (token_data.get("expires_in") or 0)
-
-        resp = RedirectResponse(url=f"/api/playlists/{playlist_id}")
-        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
-        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
-        return resp
+        new_cookie_needed = True
 
     headers = {"Authorization": f"Bearer {access_token}"}
     url = f"{API_BASE_URL}/playlists/{playlist_id}"
@@ -350,7 +348,7 @@ def get_playlist_details(playlist_id: str, request: Request):
             }
         })
 
-    return {
+    data_resp = {
         "id": data.get("id"),
         "name": data.get("name"),
         "description": data.get("description"),
@@ -363,6 +361,12 @@ def get_playlist_details(playlist_id: str, request: Request):
         "external_urls": (data.get("external_urls") or {}).get("spotify"),
         "tracks": {"total": tracks_data.get("total"), "items": formatted_tracks}
     }
+
+    resp = JSONResponse(data_resp)
+    if new_cookie_needed:
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+    return resp
 
 @router.post("/playlists")
 def create_playlist(body: CreatePlaylistRequest, request: Request):
@@ -677,25 +681,22 @@ def get_me(request: Request):
     expires_at_raw = request.cookies.get("expires_at")
 
     if not access_token:
-        return RedirectResponse(url="/api/auth/login")
+        raise HTTPException(status_code=401, detail="Not authenticated")
 
     try:
         expires_at = float(expires_at_raw) if expires_at_raw else 0
     except Exception:
         expires_at = 0
 
+    new_cookie_needed = False
     if datetime.now().timestamp() > expires_at:
         token_data = handle_token_refresh(refresh_token)
         if not token_data:
-             return RedirectResponse(url="/api/auth/login")
+             raise HTTPException(status_code=401, detail="Session expired")
         
         access_token = token_data.get("access_token")
         expires_at = datetime.now().timestamp() + (token_data.get("expires_in") or 0)
-        
-        resp = RedirectResponse(url="/api/me")
-        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
-        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
-        return resp
+        new_cookie_needed = True
 
     headers = {"Authorization": f"Bearer {access_token}"}
     url = f"{API_BASE_URL}/me"
@@ -708,7 +709,7 @@ def get_me(request: Request):
         if he.code == 401: return RedirectResponse(url="/api/auth/login")
         raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
 
-    return {
+    data_resp = {
         "user": {
             "id": data.get("id"),
             "display_name": data.get("display_name"),
@@ -717,6 +718,11 @@ def get_me(request: Request):
             "external_url": (data.get("external_urls") or {}).get("spotify"),
         }
     }
+    resp = JSONResponse(data_resp)
+    if new_cookie_needed:
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+    return resp
 
 @router.get("/top-artists")
 def get_top_artists(request: Request, time_range: str = "medium_term", limit: int = 20):
@@ -724,24 +730,23 @@ def get_top_artists(request: Request, time_range: str = "medium_term", limit: in
     refresh_token = request.cookies.get("refresh_token")
     expires_at_raw = request.cookies.get("expires_at")
 
-    if not access_token: return RedirectResponse(url="/api/auth/login")
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
 
     try:
         expires_at = float(expires_at_raw) if expires_at_raw else 0
     except Exception:
         expires_at = 0
 
+    new_cookie_needed = False
     if datetime.now().timestamp() > expires_at:
         token_data = handle_token_refresh(refresh_token)
-        if not token_data: return RedirectResponse(url="/api/auth/login")
+        if not token_data:
+            raise HTTPException(status_code=401, detail="Session expired")
         
         access_token = token_data.get("access_token")
         expires_at = datetime.now().timestamp() + (token_data.get("expires_in") or 0)
-        
-        resp = RedirectResponse(url=f"/api/top-artists?time_range={time_range}&limit={limit}")
-        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
-        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
-        return resp
+        new_cookie_needed = True
 
     headers = {"Authorization": f"Bearer {access_token}"}
     params = {"time_range": time_range, "limit": limit}
@@ -766,7 +771,11 @@ def get_top_artists(request: Request, time_range: str = "medium_term", limit: in
             "external_url": (a.get("external_urls") or {}).get("spotify"),
         })
 
-    return {"artists": artists}
+    resp = JSONResponse({"artists": artists})
+    if new_cookie_needed:
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+    return resp
 
 @router.get("/top-tracks")
 def get_top_tracks(request: Request, time_range: str = "medium_term", limit: int = 20):
@@ -774,24 +783,23 @@ def get_top_tracks(request: Request, time_range: str = "medium_term", limit: int
     refresh_token = request.cookies.get("refresh_token")
     expires_at_raw = request.cookies.get("expires_at")
 
-    if not access_token: return RedirectResponse(url="/api/auth/login")
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
 
     try:
         expires_at = float(expires_at_raw) if expires_at_raw else 0
     except Exception:
         expires_at = 0
 
+    new_cookie_needed = False
     if datetime.now().timestamp() > expires_at:
         token_data = handle_token_refresh(refresh_token)
-        if not token_data: return RedirectResponse(url="/api/auth/login")
+        if not token_data:
+            raise HTTPException(status_code=401, detail="Session expired")
         
         access_token = token_data.get("access_token")
         expires_at = datetime.now().timestamp() + (token_data.get("expires_in") or 0)
-        
-        resp = RedirectResponse(url=f"/api/top-tracks?time_range={time_range}&limit={limit}")
-        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
-        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
-        return resp
+        new_cookie_needed = True
 
     headers = {"Authorization": f"Bearer {access_token}"}
     params = {"time_range": time_range, "limit": limit}
@@ -820,7 +828,11 @@ def get_top_tracks(request: Request, time_range: str = "medium_term", limit: int
             "external_url": (t.get("external_urls") or {}).get("spotify"),
         })
 
-    return {"tracks": tracks}
+    resp = JSONResponse({"tracks": tracks})
+    if new_cookie_needed:
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+    return resp
 
 @router.get("/recently-played")
 def get_recently_played(request: Request, limit: int = 10):
