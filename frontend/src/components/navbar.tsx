@@ -230,7 +230,15 @@ export const Navbar = () => {
                   onClick={() => handleNav("/profile")}
                   className="w-full text-left text-lg text-zinc-300 hover:text-white"
                 >
-                  Profile Settings
+                  My Profile
+                </button>
+              </NavbarMenuItem>
+              <NavbarMenuItem>
+                <button
+                  onClick={() => handleNav("/stats")}
+                  className="w-full text-left text-lg text-zinc-300 hover:text-white"
+                >
+                  My Stats
                 </button>
               </NavbarMenuItem>
               <NavbarMenuItem>
