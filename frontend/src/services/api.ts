@@ -8,6 +8,7 @@ export interface Message {
   type?: "text" | "playlist-preview";
   playlistData?: any;
   isAwaitingConfirmation?: boolean;
+  pendingPlaylist?: any;
 }
 
 export interface BackendHistoryItem {
@@ -20,6 +21,7 @@ export interface GeminiChatResponse {
   playlist_id?: string;
   history: BackendHistoryItem[];
   is_awaiting_confirmation?: boolean;
+  pending_playlist?: any;
 }
 
 // --- Generic Helper ---

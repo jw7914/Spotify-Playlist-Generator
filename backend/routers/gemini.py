@@ -206,15 +206,20 @@ async def chat_endpoint(req: Request, request: ChatRequest):
                             t = items[0]
                             track_ids.append(t["id"])
                             artists = ", ".join(a["name"] for a in t.get("artists") or [])
+                            
+                            images = t.get("album", {}).get("images", [])
+                            cover_image = images[0].get("url") if images else ""
+                            
                             tracks_display.append({
                                 "name": t.get("name", query), 
                                 "artists": artists, 
-                                "url": t.get("external_urls", {}).get("spotify", "")
+                                "url": t.get("external_urls", {}).get("spotify", ""),
+                                "image": cover_image
                             })
                         else:
-                            tracks_display.append({"name": query, "artists": "(not found)", "url": ""})
+                            tracks_display.append({"name": query, "artists": "(not found)", "url": "", "image": ""})
                     except Exception:
-                        tracks_display.append({"name": query, "artists": "(search failed)", "url": ""})
+                        tracks_display.append({"name": query, "artists": "(search failed)", "url": "", "image": ""})
 
                 base_desc = args.get("description") or ""
                 current_date = datetime.now().strftime("%m/%d/%Y")
@@ -230,21 +235,7 @@ async def chat_endpoint(req: Request, request: ChatRequest):
                 if session_id:
                     save_session(session_id, session_state)
 
-                lines = [
-                    "Here's the playlist I propose (from Spotify search):",
-                    "",
-                    f"**Name:** {session_state['pending_playlist']['name']}",
-                    f"**Description:** {session_state['pending_playlist']['description'] or 'None'}",
-                    "**Tracks:**",
-                ]
-                for i, d in enumerate(tracks_display, start=1):
-                    if d.get("url"):
-                        lines.append(f"  {i}. [{d['name']} — {d['artists']}]({d['url']})")
-                    else:
-                        lines.append(f"  {i}. {d['name']} — {d['artists']}")
-                lines.append("")
-                lines.append("Would you like me to create this playlist?")
-                user_text = "\n".join(lines)
+                user_text = "I've drafted a playlist for you! Click **Review** below to see the tracks and confirm."
 
             # -------------------------
             # Confirmation: Gemini infers and calls confirmAndCreatePlaylist
@@ -339,7 +330,8 @@ async def chat_endpoint(req: Request, request: ChatRequest):
         return {
             "text": user_text,
             "history": updated_history,
-            "is_awaiting_confirmation": session_state.get("awaiting_confirmation", False)
+            "is_awaiting_confirmation": session_state.get("awaiting_confirmation", False),
+            "pending_playlist": session_state.get("pending_playlist")
         }
 
     except Exception as e:

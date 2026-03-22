@@ -15,6 +15,11 @@ import {
   Autocomplete,
   AutocompleteItem,
   Divider,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
 } from "@heroui/react";
 import { Send, Sparkles, Bot, User, Music, Disc3, History, Plus, Trash2, Search } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -47,6 +52,8 @@ export default function CreateWithAIPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const { isOpen: isReviewOpen, onOpen: onReviewOpen, onOpenChange: onReviewOpenChange } = useDisclosure();
+  const [reviewPlaylist, setReviewPlaylist] = useState<any>(null);
 
   // Redirect if not logged in but trying to access a specific session
   useEffect(() => {
@@ -226,6 +233,7 @@ export default function CreateWithAIPage() {
           ? { name: "Generated Mix", trackCount: "20+", id: data.playlist_id } // Placeholder
           : undefined,
         isAwaitingConfirmation: data.is_awaiting_confirmation,
+        pendingPlaylist: data.pending_playlist,
       };
 
       setMessages((prev) => [...prev, aiResponse]);
@@ -400,13 +408,18 @@ export default function CreateWithAIPage() {
                     )}
                     {msg.isAwaitingConfirmation && index === messages.length - 1 && (
                       <div className="flex flex-col sm:flex-row gap-4 sm:gap-2 mt-3 w-full">
-                        <Button
-                          className="bg-[#1DB954] text-black font-bold flex-1"
-                          onPress={() => handleSend("Yes, create it")}
-                          isDisabled={isLoading}
-                        >
-                          Yes, Create It
-                        </Button>
+                        {msg.pendingPlaylist && (
+                          <Button
+                            className="bg-purple-600 text-white font-bold flex-1"
+                            onPress={() => {
+                              setReviewPlaylist(msg.pendingPlaylist);
+                              onReviewOpen();
+                            }}
+                            isDisabled={isLoading}
+                          >
+                            Review
+                          </Button>
+                        )}
                         <Button
                           className="bg-zinc-700 text-white font-bold flex-1"
                           onPress={() => handleSend("No, cancel")}
@@ -495,6 +508,50 @@ export default function CreateWithAIPage() {
             AI can make mistakes. Please check the playlist before syncing.
           </p>
         </div>
+
+        {/* Review Modal */}
+        <Modal isOpen={isReviewOpen} onOpenChange={onReviewOpenChange} scrollBehavior="inside" backdrop="blur" classNames={{base: "bg-zinc-900 border border-white/10 text-white", header: "border-b border-white/10", footer: "border-t border-white/10"}}>
+          <ModalContent>
+            {(onClose) => (
+              <>
+                <ModalHeader className="flex flex-col gap-1">
+                  {reviewPlaylist?.name}
+                  <span className="text-xs font-normal text-zinc-400">{reviewPlaylist?.description}</span>
+                </ModalHeader>
+                <ModalBody>
+                  <div className="flex flex-col gap-3 py-4">
+                    {reviewPlaylist?.tracks_display?.map((t: any, i: number) => (
+                      <a key={i} href={t.url || "#"} target={t.url ? "_blank" : undefined} rel={t.url ? "noopener noreferrer" : undefined} className="flex items-center gap-3 bg-zinc-800/50 p-2 rounded-lg hover:bg-zinc-800 border border-white/5 hover:border-white/10 transition-colors">
+                        {t.image ? (
+                          <img src={t.image} alt={t.name} className="w-12 h-12 rounded object-cover shrink-0" />
+                        ) : (
+                          <div className="w-12 h-12 rounded bg-zinc-700 flex items-center justify-center shrink-0">
+                            <Music size={20} className="text-zinc-500" />
+                          </div>
+                        )}
+                        <div className="flex flex-col flex-1 min-w-0">
+                          <span className="text-sm font-semibold truncate hover:text-[#1DB954] transition-colors">{t.name}</span>
+                          <span className="text-xs text-zinc-400 truncate">{t.artists}</span>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </ModalBody>
+                <ModalFooter>
+                  <Button color="danger" variant="light" onPress={onClose}>
+                    Close
+                  </Button>
+                  <Button className="bg-[#1DB954] text-black font-bold" onPress={() => {
+                    onClose();
+                    handleSend("Yes, create it");
+                  }}>
+                    Yes, Create It
+                  </Button>
+                </ModalFooter>
+              </>
+            )}
+          </ModalContent>
+        </Modal>
       </main>
 
       {/* History Drawer */}
