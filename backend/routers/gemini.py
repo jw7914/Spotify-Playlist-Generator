@@ -12,6 +12,7 @@ from backend.routers.spotify import (
     search_spotify_songs,
     add_tracks_to_playlist,
     get_current_user_id,
+    get_user_playlists_context,
 )
 import redis
 import json
@@ -144,18 +145,22 @@ async def chat_endpoint(req: Request, request: ChatRequest):
                 parts=[types.Part.from_text(text=part) for part in item.parts]
             ))
 
+        playlist_context = get_user_playlists_context(req)
+        system_instruction_text = (
+            "You are a Spotify AI DJ. Your goal is to help users build playlists based on their feelings, moods, or described scenarios.\n\n"
+            f"{playlist_context}\n\n"
+            "When a user describes a scenario or asks for a playlist:\n"
+            "1. Call proposePlaylist with a name, optional description, and a list of track search queries (e.g. song titles or 'artist - song'). "
+            "Do not call createPlaylist or addTracksToPlaylist directly.\n"
+            "2. The backend will search Spotify for each query, cache the track IDs, and show the user a structured proposal with the actual tracks found (name and artists).\n"
+            "3. When the user confirms they want it (e.g. 'yes', 'create it', 'sounds good', 'go ahead'), you must call confirmAndCreatePlaylist. "
+            "That uses the cached proposal—do not call proposePlaylist again. If the user declines (e.g. 'no', 'cancel'), respond in chat that you won't create it; do not call any tool."
+        )
+
         chat = client.chats.create(
             model=GEMINI_MODEL,
             config=types.GenerateContentConfig(
-                system_instruction=(
-                    "You are a Spotify AI DJ. Your goal is to help users build playlists based on their feelings, moods, or described scenarios.\n\n"
-                    "When a user describes a scenario or asks for a playlist:\n"
-                    "1. Call proposePlaylist with a name, optional description, and a list of track search queries (e.g. song titles or 'artist - song'). "
-                    "Do not call createPlaylist or addTracksToPlaylist directly.\n"
-                    "2. The backend will search Spotify for each query, cache the track IDs, and show the user a structured proposal with the actual tracks found (name and artists).\n"
-                    "3. When the user confirms they want it (e.g. 'yes', 'create it', 'sounds good', 'go ahead'), you must call confirmAndCreatePlaylist. "
-                    "That uses the cached proposal—do not call proposePlaylist again. If the user declines (e.g. 'no', 'cancel'), respond in chat that you won't create it; do not call any tool."
-                ),
+                system_instruction=system_instruction_text,
                 tools=[
                     {
                         "function_declarations": [

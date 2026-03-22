@@ -556,6 +556,76 @@ def remove_tracks_from_playlist(playlist_id: str, body: AddTracksRequest, reques
 
 # --- Backend helpers (for server-side use, e.g. Gemini) ---
 
+def get_user_playlists_context(request: Request, limit_playlists: int = 3, limit_tracks: int = 10) -> str:
+    """Fetch a brief summary of the user's playlists and their tracks to provide context to the AI."""
+    if not request:
+        return ""
+    
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token:
+        return ""
+
+    try:
+        expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except Exception:
+        expires_at = 0
+
+    if datetime.now().timestamp() > expires_at:
+        token_data = handle_token_refresh(refresh_token)
+        if not token_data:
+            return ""
+        access_token = token_data.get("access_token")
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    playlists_url = f"{API_BASE_URL}/me/playlists?limit={limit_playlists}"
+    
+    context_lines = ["User's existing Spotify Playlists:"]
+    
+    try:
+        req = urllib.request.Request(playlists_url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            playlists = data.get("items", [])
+    except Exception as e:
+        print(f"Failed to fetch user playlists for context: {e}")
+        return ""
+        
+    if not playlists:
+        return "The user currently has no playlists on Spotify."
+
+    for p in playlists:
+        if not p: continue
+        p_name = p.get("name")
+        p_id = p.get("id")
+        
+        tracks_url = f"{API_BASE_URL}/playlists/{p_id}/tracks?limit={limit_tracks}"
+        try:
+            treq = urllib.request.Request(tracks_url, headers=headers, method="GET")
+            with urllib.request.urlopen(treq, timeout=5) as tresp:
+                tdata = json.loads(tresp.read().decode("utf-8"))
+                track_items = tdata.get("items", [])
+        except Exception as e:
+            print(f"Failed to fetch tracks for playlist {p_name}: {e}")
+            track_items = []
+            
+        track_names = []
+        for item in track_items:
+            track_obj = item.get("track")
+            if track_obj:
+                t_name = track_obj.get("name")
+                artists = ", ".join([a.get("name") for a in track_obj.get("artists", []) if a.get("name")])
+                track_names.append(f"'{t_name}' by {artists}")
+                
+        if track_names:
+            context_lines.append(f"- Playlist '{p_name}': {', '.join(track_names)}")
+        else:
+            context_lines.append(f"- Playlist '{p_name}': (no tracks or unable to fetch)")
+
+    return "\n".join(context_lines)
+
 def create_playlist(
     name: str,
     description: str | None = None,
