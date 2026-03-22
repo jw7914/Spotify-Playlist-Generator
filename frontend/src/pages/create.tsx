@@ -18,7 +18,7 @@ import {
 } from "@heroui/react";
 import { Send, Sparkles, Bot, User, Music, Disc3, History, Plus, Trash2, Search } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 
 import { api, Message } from "../services/api";
 import { useAuth } from "@/hooks/useAuth";
@@ -336,6 +336,28 @@ export default function CreateWithAIPage() {
                         strong: ({ node, ...props }) => (
                           <span className="font-bold" {...props} />
                         ),
+                        a: ({ node, href, children, ...props }) => {
+                          const isInternal = href?.startsWith("/");
+
+                          if (isInternal) {
+                            return (
+                              <Link to={href!} className="text-[#1DB954] hover:underline font-semibold" {...props}>
+                                {children}
+                              </Link>
+                            );
+                          }
+                          return (
+                            <a 
+                              href={href} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-[#1DB954] hover:underline font-semibold"
+                              {...props} 
+                            >
+                              {children}
+                            </a>
+                          );
+                        },
                         ul: ({ node, ...props }) => (
                           <ul
                             className="list-disc pl-4 mb-2 space-y-1"

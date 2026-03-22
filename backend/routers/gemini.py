@@ -154,7 +154,9 @@ async def chat_endpoint(req: Request, request: ChatRequest):
             "Do not call createPlaylist or addTracksToPlaylist directly.\n"
             "2. The backend will search Spotify for each query, cache the track IDs, and show the user a structured proposal with the actual tracks found (name and artists).\n"
             "3. When the user confirms they want it (e.g. 'yes', 'create it', 'sounds good', 'go ahead'), you must call confirmAndCreatePlaylist. "
-            "That uses the cached proposal—do not call proposePlaylist again. If the user declines (e.g. 'no', 'cancel'), respond in chat that you won't create it; do not call any tool."
+            "That uses the cached proposal—do not call proposePlaylist again. If the user declines (e.g. 'no', 'cancel'), respond in chat that you won't create it; do not call any tool.\n"
+            "4. If the user asks what their currently existing playlists are, answer them and nicely use Markdown to format the output like so for each playlist:\n"
+            "   <Playlist Name> - [View Playlist](/playlists/<playlist_id>)"
         )
 
         chat = client.chats.create(

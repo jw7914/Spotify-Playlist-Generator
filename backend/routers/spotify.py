@@ -556,7 +556,7 @@ def remove_tracks_from_playlist(playlist_id: str, body: AddTracksRequest, reques
 
 # --- Backend helpers (for server-side use, e.g. Gemini) ---
 
-def get_user_playlists_context(request: Request, limit_playlists: int = 3, limit_tracks: int = 10) -> str:
+def get_user_playlists_context(request: Request, limit_playlists: int = 10, limit_tracks: int = 10) -> str:
     """Fetch a brief summary of the user's playlists and their tracks to provide context to the AI."""
     if not request:
         return ""
@@ -601,6 +601,11 @@ def get_user_playlists_context(request: Request, limit_playlists: int = 3, limit
         p_name = p.get("name")
         p_id = p.get("id")
         
+        p_image = ""
+        images = p.get("images", [])
+        if images and len(images) > 0:
+            p_image = images[0].get("url", "")
+        
         tracks_url = f"{API_BASE_URL}/playlists/{p_id}/tracks?limit={limit_tracks}"
         try:
             treq = urllib.request.Request(tracks_url, headers=headers, method="GET")
@@ -620,9 +625,9 @@ def get_user_playlists_context(request: Request, limit_playlists: int = 3, limit
                 track_names.append(f"'{t_name}' by {artists}")
                 
         if track_names:
-            context_lines.append(f"- Playlist '{p_name}': {', '.join(track_names)}")
+            context_lines.append(f"- Playlist '{p_name}' (ID: {p_id}, Image: {p_image}): {', '.join(track_names)}")
         else:
-            context_lines.append(f"- Playlist '{p_name}': (no tracks or unable to fetch)")
+            context_lines.append(f"- Playlist '{p_name}' (ID: {p_id}, Image: {p_image}): (no tracks or unable to fetch)")
 
     return "\n".join(context_lines)
 
