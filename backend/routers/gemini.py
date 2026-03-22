@@ -210,9 +210,13 @@ async def chat_endpoint(req: Request, request: ChatRequest):
                     except Exception:
                         tracks_display.append({"name": query, "artists": "(search failed)"})
 
+                base_desc = args.get("description") or ""
+                current_date = datetime.now().strftime("%m/%d/%Y")
+                desc_with_date = f"{base_desc} (Generated on {current_date})" if base_desc else f"Generated on {current_date}"
+
                 session_state["pending_playlist"] = {
                     "name": args.get("name", "New Playlist"),
-                    "description": args.get("description") or "",
+                    "description": desc_with_date,
                     "track_ids": track_ids,
                     "tracks_display": tracks_display,
                 }
