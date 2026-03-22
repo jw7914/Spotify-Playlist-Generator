@@ -75,7 +75,7 @@ export const api = {
       fetchJson<{ id: string; title: string; updated_at: string }[]>(`${BASE_URL}/gemini/sessions?user_id=${userId}`),
 
     getSessionMessages: (sessionId: string) =>
-      fetchJson<{ id: string; role: string; content: string; created_at: string }[]>(`${BASE_URL}/gemini/sessions/${sessionId}/messages`),
+      fetchJson<{ messages: { id: string; role: string; content: string; created_at: string }[], is_awaiting_confirmation?: boolean, pending_playlist?: any }>(`${BASE_URL}/gemini/sessions/${sessionId}/messages`),
 
     deleteSession: (sessionId: string) =>
       fetchJson(`${BASE_URL}/gemini/sessions/${sessionId}`, {

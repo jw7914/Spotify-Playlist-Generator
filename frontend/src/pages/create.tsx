@@ -111,14 +111,23 @@ export default function CreateWithAIPage() {
   const loadSessionData = async (sid: string) => {
       setIsLoading(true);
       try {
-          const msgs = await api.gemini.getSessionMessages(sid);
+          const data = await api.gemini.getSessionMessages(sid);
+          const msgs = data.messages;
           
-          const formattedMessages: Message[] = msgs.map(m => ({
-              id: m.id,
-              role: m.role === "model" ? "ai" : "user",
-              content: m.content,
-              type: "text"
-          }));
+          const formattedMessages: Message[] = msgs.map((m, index) => {
+              const baseMsg: Message = {
+                  id: m.id,
+                  role: m.role === "model" ? "ai" : "user",
+                  content: m.content,
+                  type: "text"
+              };
+              
+              if (index === msgs.length - 1 && baseMsg.role === "ai") {
+                  baseMsg.isAwaitingConfirmation = data.is_awaiting_confirmation;
+                  baseMsg.pendingPlaylist = data.pending_playlist;
+              }
+              return baseMsg;
+          });
           
           setMessages([WELCOME_MESSAGE, ...formattedMessages]);
           setCurrentSessionId(sid);

@@ -3,7 +3,7 @@ from google import genai
 from google.genai import types
 import os
 from dotenv import load_dotenv
-from backend.routers.gemini_models import ChatRequest, ChatHistoryItem, CreateSessionRequest, SessionResponse, MessageResponse
+from backend.routers.gemini_models import ChatRequest, ChatHistoryItem, CreateSessionRequest, SessionResponse, MessageResponse, SessionMessagesResponse
 from backend.supabase import supabase
 from datetime import datetime
 from backend.routers.gemini_tools import *
@@ -76,7 +76,7 @@ def get_sessions(user_id: str = Depends(get_current_user_id)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/sessions/{session_id}/messages", response_model=list[MessageResponse])
+@router.get("/sessions/{session_id}/messages", response_model=SessionMessagesResponse)
 def get_session_messages(session_id: str, user_id: str = Depends(get_current_user_id)):
     try:
         # First, ensure the session actually belongs to this user
@@ -85,7 +85,14 @@ def get_session_messages(session_id: str, user_id: str = Depends(get_current_use
             raise HTTPException(status_code=403, detail="Not authorized to access this session")
 
         response = supabase.table("chat_messages").select("*").eq("session_id", session_id).order("created_at", desc=False).execute()
-        return response.data
+        
+        session_state = get_session(session_id)
+        
+        return SessionMessagesResponse(
+            messages=response.data,
+            is_awaiting_confirmation=session_state.get("awaiting_confirmation", False),
+            pending_playlist=session_state.get("pending_playlist")
+        )
     except HTTPException:
         raise
     except Exception as e:

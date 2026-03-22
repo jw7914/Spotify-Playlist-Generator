@@ -28,3 +28,8 @@ class MessageResponse(BaseModel):
     role: str
     content: str
     created_at: str
+
+class SessionMessagesResponse(BaseModel):
+    messages: list[MessageResponse]
+    is_awaiting_confirmation: bool = False
+    pending_playlist: dict | None = None
