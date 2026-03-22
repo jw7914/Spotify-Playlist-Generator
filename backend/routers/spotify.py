@@ -556,7 +556,7 @@ def remove_tracks_from_playlist(playlist_id: str, body: AddTracksRequest, reques
 
 # --- Backend helpers (for server-side use, e.g. Gemini) ---
 
-def get_user_playlists_context(request: Request, limit_playlists: int = 10, limit_tracks: int = 10) -> str:
+def get_user_playlists_context(request: Request, limit_tracks: int = 10) -> str:
     """Fetch a brief summary of the user's playlists and their tracks to provide context to the AI."""
     if not request:
         return ""
@@ -580,18 +580,21 @@ def get_user_playlists_context(request: Request, limit_playlists: int = 10, limi
         access_token = token_data.get("access_token")
 
     headers = {"Authorization": f"Bearer {access_token}"}
-    playlists_url = f"{API_BASE_URL}/me/playlists?limit={limit_playlists}"
+    playlists_url = f"{API_BASE_URL}/me/playlists?limit=50"
     
     context_lines = ["User's existing Spotify Playlists:"]
     
-    try:
-        req = urllib.request.Request(playlists_url, headers=headers, method="GET")
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            playlists = data.get("items", [])
-    except Exception as e:
-        print(f"Failed to fetch user playlists for context: {e}")
-        return ""
+    playlists = []
+    while playlists_url:
+        try:
+            req = urllib.request.Request(playlists_url, headers=headers, method="GET")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                playlists.extend(data.get("items", []))
+                playlists_url = data.get("next")
+        except Exception as e:
+            print(f"Failed to fetch user playlists for context: {e}")
+            break
         
     if not playlists:
         return "The user currently has no playlists on Spotify."
