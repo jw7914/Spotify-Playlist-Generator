@@ -206,11 +206,15 @@ async def chat_endpoint(req: Request, request: ChatRequest):
                             t = items[0]
                             track_ids.append(t["id"])
                             artists = ", ".join(a["name"] for a in t.get("artists") or [])
-                            tracks_display.append({"name": t.get("name", query), "artists": artists})
+                            tracks_display.append({
+                                "name": t.get("name", query), 
+                                "artists": artists, 
+                                "url": t.get("external_urls", {}).get("spotify", "")
+                            })
                         else:
-                            tracks_display.append({"name": query, "artists": "(not found)"})
+                            tracks_display.append({"name": query, "artists": "(not found)", "url": ""})
                     except Exception:
-                        tracks_display.append({"name": query, "artists": "(search failed)"})
+                        tracks_display.append({"name": query, "artists": "(search failed)", "url": ""})
 
                 base_desc = args.get("description") or ""
                 current_date = datetime.now().strftime("%m/%d/%Y")
@@ -234,7 +238,10 @@ async def chat_endpoint(req: Request, request: ChatRequest):
                     "**Tracks:**",
                 ]
                 for i, d in enumerate(tracks_display, start=1):
-                    lines.append(f"  {i}. {d['name']} — {d['artists']}")
+                    if d.get("url"):
+                        lines.append(f"  {i}. [{d['name']} — {d['artists']}]({d['url']})")
+                    else:
+                        lines.append(f"  {i}. {d['name']} — {d['artists']}")
                 lines.append("")
                 lines.append("Would you like me to create this playlist?")
                 user_text = "\n".join(lines)
