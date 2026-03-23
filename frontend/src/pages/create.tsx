@@ -326,14 +326,32 @@ export default function CreateWithAIPage() {
              </div>
           </div>
           {isAuthenticated && user && (
-            <Button 
-                isIconOnly 
-                className="bg-[#1DB954] text-black" 
-                onPress={onOpen}
-                isDisabled={isLoading}
-            >
-                <History size={20} />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                  className="bg-zinc-800 text-white border border-white/10 hidden sm:flex font-semibold" 
+                  onPress={() => handleNewChat()}
+                  isDisabled={isLoading}
+                  startContent={<Plus size={18} />}
+              >
+                  New Chat
+              </Button>
+              <Button 
+                  isIconOnly
+                  className="bg-zinc-800 text-white border border-white/10 sm:hidden" 
+                  onPress={() => handleNewChat()}
+                  isDisabled={isLoading}
+              >
+                  <Plus size={20} />
+              </Button>
+              <Button 
+                  isIconOnly 
+                  className="bg-[#1DB954] text-black" 
+                  onPress={onOpen}
+                  isDisabled={isLoading}
+              >
+                  <History size={20} />
+              </Button>
+            </div>
           )}
         </div>
 
@@ -619,20 +637,6 @@ export default function CreateWithAIPage() {
               </DrawerHeader>
               <DrawerBody className="p-0">
                   <div className="p-4 pb-0 flex flex-col gap-4">
-                      <Button 
-                        fullWidth 
-                        className="bg-[#1DB954] text-black font-bold"
-                        startContent={<Plus size={18} />}
-                        onPress={() => {
-                            handleNewChat();
-                            onClose();
-                        }}
-                      >
-                        New Chat
-                      </Button>
-                      
-                      <Divider className="my-2 bg-white/10" />
-
                       <Autocomplete 
                         aria-label="Search History"
                         placeholder="Search chats..."

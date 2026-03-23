@@ -283,7 +283,6 @@ async def chat_endpoint(req: Request, request: ChatRequest):
                         f'Playlist "{playlist["name"]}" created successfully.\n'
                         f'Added {len(track_ids)} tracks.\n'
                         + (f'View on Spotify: {ext}' if ext else '')
-                        + f'\n\n*(Debug: Used override tracks = {len(track_ids)})*'
                     )
                 except Exception as e:
                     user_text = f"Something went wrong creating the playlist: {e}"
