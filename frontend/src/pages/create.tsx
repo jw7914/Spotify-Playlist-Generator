@@ -62,6 +62,28 @@ export default function CreateWithAIPage() {
     }
   }, [isAuthLoading, isAuthenticated, sessionId, navigate]);
 
+  const handleRemoveTrack = (indexToRemove: number) => {
+      setReviewPlaylist((prev: any) => {
+          if (!prev) return prev;
+          
+          const filtered = {
+              ...prev,
+              tracks_display: prev.tracks_display.filter((_: any, i: number) => i !== indexToRemove),
+              track_ids: prev.track_ids.filter((_: any, i: number) => i !== indexToRemove)
+          };
+          
+          // Sync it back to the messages array so the outer chat buttons have the updated payload
+          setMessages((msgs) => msgs.map((m, idx) => {
+              if (m.isAwaitingConfirmation && m.pendingPlaylist && idx === msgs.length - 1) {
+                  return { ...m, pendingPlaylist: filtered };
+              }
+              return m;
+          }));
+
+          return filtered;
+      });
+  };
+
   // Initial Welcome Message
   const WELCOME_MESSAGE: Message = {
     id: "1",
@@ -183,7 +205,7 @@ export default function CreateWithAIPage() {
   };
 
   // --- Handle Sending ---
-  const handleSend = async (textOverride?: string | any) => {
+  const handleSend = async (textOverride?: string | any, playlistOverride?: any) => {
     const isOverride = typeof textOverride === 'string';
     const textToSend = isOverride ? textOverride : input;
     if (!textToSend.trim()) return;
@@ -224,8 +246,17 @@ export default function CreateWithAIPage() {
       // 2. Prepare History
       const history = getHistoryForBackend(newMessages);
 
+      // Default the override payload to the newest message if the user simply types "Yes" via keyboard
+      let finalPlaylistOverride = playlistOverride;
+      if (!finalPlaylistOverride && messages.length > 0) {
+          const lastMsg = messages[messages.length - 1];
+          if (lastMsg.isAwaitingConfirmation && lastMsg.pendingPlaylist) {
+               finalPlaylistOverride = lastMsg.pendingPlaylist;
+          }
+      }
+
       // 3. Call the API
-      const data = await api.gemini.chat(userMsg.content, history, activeSessionId || undefined);
+      const data = await api.gemini.chat(userMsg.content, history, activeSessionId || undefined, finalPlaylistOverride);
 
       // 4. Process AI Response
       const isPlaylistContext =
@@ -419,6 +450,7 @@ export default function CreateWithAIPage() {
                       <div className="flex flex-col sm:flex-row gap-4 sm:gap-2 mt-3 w-full">
                         {msg.pendingPlaylist && (
                           <Button
+                            size="lg"
                             className="bg-purple-600 text-white font-bold flex-1"
                             onPress={() => {
                               setReviewPlaylist(msg.pendingPlaylist);
@@ -430,6 +462,7 @@ export default function CreateWithAIPage() {
                           </Button>
                         )}
                         <Button
+                          size="lg"
                           className="bg-zinc-700 text-white font-bold flex-1"
                           onPress={() => handleSend("No, cancel")}
                           isDisabled={isLoading}
@@ -530,19 +563,30 @@ export default function CreateWithAIPage() {
                 <ModalBody>
                   <div className="flex flex-col gap-3 py-4">
                     {reviewPlaylist?.tracks_display?.map((t: any, i: number) => (
-                      <a key={i} href={t.url || "#"} target={t.url ? "_blank" : undefined} rel={t.url ? "noopener noreferrer" : undefined} className="flex items-center gap-3 bg-zinc-800/50 p-2 rounded-lg hover:bg-zinc-800 border border-white/5 hover:border-white/10 transition-colors">
-                        {t.image ? (
-                          <img src={t.image} alt={t.name} className="w-12 h-12 rounded object-cover shrink-0" />
-                        ) : (
-                          <div className="w-12 h-12 rounded bg-zinc-700 flex items-center justify-center shrink-0">
-                            <Music size={20} className="text-zinc-500" />
+                      <div key={i} className="flex items-center gap-3 bg-zinc-800/50 p-2 rounded-lg border border-white/5 hover:bg-zinc-800 hover:border-white/10 transition-colors group">
+                        <a href={t.url || "#"} target={t.url ? "_blank" : undefined} rel={t.url ? "noopener noreferrer" : undefined} className="flex items-center gap-3 flex-1 min-w-0">
+                          {t.image ? (
+                            <img src={t.image} alt={t.name} className="w-12 h-12 rounded object-cover shrink-0" />
+                          ) : (
+                            <div className="w-12 h-12 rounded bg-zinc-700 flex items-center justify-center shrink-0">
+                              <Music size={20} className="text-zinc-500" />
+                            </div>
+                          )}
+                          <div className="flex flex-col flex-1 min-w-0">
+                            <span className="text-sm font-semibold truncate hover:text-[#1DB954] transition-colors">{t.name}</span>
+                            <span className="text-xs text-zinc-400 truncate">{t.artists}</span>
                           </div>
-                        )}
-                        <div className="flex flex-col flex-1 min-w-0">
-                          <span className="text-sm font-semibold truncate hover:text-[#1DB954] transition-colors">{t.name}</span>
-                          <span className="text-xs text-zinc-400 truncate">{t.artists}</span>
-                        </div>
-                      </a>
+                        </a>
+                        <Button 
+                          isIconOnly 
+                          size="sm" 
+                          variant="light" 
+                          className="text-zinc-500 hover:text-red-500 min-w-8 w-8 h-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onPress={() => handleRemoveTrack(i)}
+                        >
+                          <Trash2 size={16} />
+                        </Button>
+                      </div>
                     ))}
                   </div>
                 </ModalBody>
@@ -552,7 +596,7 @@ export default function CreateWithAIPage() {
                   </Button>
                   <Button className="bg-[#1DB954] text-black font-bold" onPress={() => {
                     onClose();
-                    handleSend("Yes, create it");
+                    handleSend("Yes, create it", reviewPlaylist);
                   }}>
                     Yes, Create It
                   </Button>

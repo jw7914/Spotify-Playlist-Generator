@@ -82,11 +82,11 @@ export const api = {
         method: "DELETE",
       }),
 
-    chat: (message: string, history: BackendHistoryItem[], sessionId?: string) => 
+    chat: (message: string, history: BackendHistoryItem[], sessionId?: string, pendingPlaylistOverride?: any) => 
       fetchJson<GeminiChatResponse>(`${BASE_URL}/gemini/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, history, session_id: sessionId }),
+        body: JSON.stringify({ message, history, session_id: sessionId, pending_playlist_override: pendingPlaylistOverride }),
       }),
   },
   spotify: {

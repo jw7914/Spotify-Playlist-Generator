@@ -11,6 +11,7 @@ class ChatRequest(BaseModel):
     message: str
     history: list[ChatHistoryItem] = []
     session_id: str | None = None
+    pending_playlist_override: dict | None = None
 
 class CreateSessionRequest(BaseModel):
     user_id: str

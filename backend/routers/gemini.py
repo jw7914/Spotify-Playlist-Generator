@@ -144,6 +144,16 @@ async def chat_endpoint(req: Request, request: ChatRequest):
                 "logged_in": False,
             }
 
+        # Handle pending playlist override from frontend
+        if request.pending_playlist_override and session_state.get("pending_playlist"):
+            # DEBUG TRACE
+            print("OVERRIDE RECEIVED FOR:", request.pending_playlist_override.get('name'))
+            print("TRACK IDS COUNT OVERRIDE:", len(request.pending_playlist_override.get('track_ids', [])))
+            
+            session_state["pending_playlist"] = request.pending_playlist_override
+            if session_id:
+                save_session(session_id, session_state)
+
         # Optimize history for Gemini
         formatted_history = []
         for item in request.history:
@@ -268,10 +278,12 @@ async def chat_endpoint(req: Request, request: ChatRequest):
                     if session_id:
                         save_session(session_id, session_state)
                     ext = (playlist.get("external_urls") or {}).get("spotify", "")
+                    
                     user_text = (
                         f'Playlist "{playlist["name"]}" created successfully.\n'
                         f'Added {len(track_ids)} tracks.\n'
                         + (f'View on Spotify: {ext}' if ext else '')
+                        + f'\n\n*(Debug: Used override tracks = {len(track_ids)})*'
                     )
                 except Exception as e:
                     user_text = f"Something went wrong creating the playlist: {e}"
