@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import {
   Button,
-  Input,
+  Textarea,
   Avatar,
   ScrollShadow,
   Chip,
@@ -517,14 +517,16 @@ export default function CreateWithAIPage() {
         )}
 
         {/* Input Area */}
-        <div className="bg-black z-20 shrink-0">
-          <Input
+        <div className="bg-black z-20 shrink-0 pb-2">
+          <Textarea
+            minRows={1}
+            maxRows={6}
             classNames={{
               input:
-                "text-base !text-white placeholder:text-zinc-500 !bg-transparent",
+                "text-base !text-white placeholder:text-zinc-500 !bg-transparent py-1.5",
               inputWrapper:
-                "bg-zinc-900 border border-zinc-800 data-[hover=true]:bg-zinc-900 focus-within:!bg-zinc-900 focus-within:!border-purple-500/50 rounded-full h-14 pl-6 pr-2 shadow-lg",
-              innerWrapper: "gap-3",
+                "bg-zinc-900 border border-zinc-800 data-[hover=true]:bg-zinc-900 focus-within:!bg-zinc-900 focus-within:!border-purple-500/50 rounded-3xl min-h-[56px] py-1 pl-6 pr-2 shadow-lg",
+              innerWrapper: "gap-3 items-end pb-1",
             }}
             placeholder={isLoading ? "AI is thinking..." : "Describe your mood, genre, or activity..."}
             value={input}
