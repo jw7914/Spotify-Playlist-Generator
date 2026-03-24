@@ -13,6 +13,7 @@ from backend.routers.spotify import (
     add_tracks_to_playlist,
     get_current_user_id,
     get_user_playlists_context,
+    get_user_top_tastes_context,
 )
 import redis
 import json
@@ -163,9 +164,10 @@ async def chat_endpoint(req: Request, request: ChatRequest):
             ))
 
         playlist_context = get_user_playlists_context(req)
+        tastes_context = get_user_top_tastes_context(req)
         system_instruction_text = (
             "You are a Spotify AI DJ. Your goal is to help users build playlists based on their feelings, moods, or described scenarios.\n\n"
-            f"{playlist_context}\n\n"
+            f"{playlist_context}\n{tastes_context}\n\n"
             "When a user describes a scenario or asks for a playlist:\n"
             "1. Call proposePlaylist with a name, optional description, and a list of track search queries (e.g. song titles or 'artist - song'). "
             "Do not call createPlaylist or addTracksToPlaylist directly.\n"

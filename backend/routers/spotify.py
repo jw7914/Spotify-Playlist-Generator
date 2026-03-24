@@ -636,6 +636,79 @@ def get_user_playlists_context(request: Request, limit_tracks: int = 10) -> str:
 
     return "\n".join(context_lines)
 
+def get_user_top_tastes_context(request: Request) -> str:
+    """Fetch a brief summary of the user's top artists, genres, and tracks to provide context to the AI."""
+    if not request:
+        return ""
+    
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token:
+        return ""
+
+    try:
+        expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except Exception:
+        expires_at = 0
+
+    if datetime.now().timestamp() > expires_at:
+        token_data = handle_token_refresh(refresh_token)
+        if not token_data:
+            return ""
+        access_token = token_data.get("access_token")
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    
+    context_lines = []
+    
+    # 1. Fetch Top Artists & Genres
+    artists_url = f"{API_BASE_URL}/me/top/artists?limit=15&time_range=medium_term"
+    try:
+        req = urllib.request.Request(artists_url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            artists_items = data.get("items", [])
+            
+            top_artists = []
+            all_genres = set()
+            for a in artists_items:
+                top_artists.append(a.get("name"))
+                for g in a.get("genres", []):
+                    all_genres.add(g)
+            
+            if top_artists:
+                context_lines.append(f"User's Top Artists: {', '.join(top_artists)}")
+            if all_genres:
+                context_lines.append(f"User's Top Genres: {', '.join(list(all_genres)[:15])}")
+    except Exception as e:
+        print(f"Failed to fetch top artists for context: {e}")
+
+    # 2. Fetch Top Tracks
+    tracks_url = f"{API_BASE_URL}/me/top/tracks?limit=10&time_range=medium_term"
+    try:
+        req = urllib.request.Request(tracks_url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            tracks_items = data.get("items", [])
+            
+            top_tracks = []
+            for t in tracks_items:
+                t_name = t.get("name")
+                artists = ", ".join([a.get("name") for a in t.get("artists", []) if a.get("name")])
+                top_tracks.append(f"'{t_name}' by {artists}")
+            
+            if top_tracks:
+                context_lines.append(f"User's Top Tracks: {', '.join(top_tracks)}")
+    except Exception as e:
+        print(f"Failed to fetch top tracks for context: {e}")
+
+    if not context_lines:
+        return ""
+        
+    return "\n" + "\n".join(context_lines)
+
 def create_playlist(
     name: str,
     description: str | None = None,
