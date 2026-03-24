@@ -170,9 +170,10 @@ async def chat_endpoint(req: Request, request: ChatRequest):
             "1. Call proposePlaylist with a name, optional description, and a list of track search queries (e.g. song titles or 'artist - song'). "
             "Do not call createPlaylist or addTracksToPlaylist directly.\n"
             "2. The backend will search Spotify for each query, cache the track IDs, and show the user a structured proposal with the actual tracks found (name and artists).\n"
-            "3. When the user confirms they want it (e.g. 'yes', 'create it', 'sounds good', 'go ahead'), you must call confirmAndCreatePlaylist. "
+            "3. If the user wants to add more songs to the proposed playlist, call addTracksToProposal. If they want to remove specific songs, call removeTracksFromProposal.\n"
+            "4. When the user confirms they want it (e.g. 'yes', 'create it', 'sounds good', 'go ahead'), you must call confirmAndCreatePlaylist. "
             "That uses the cached proposal—do not call proposePlaylist again. If the user declines (e.g. 'no', 'cancel'), respond in chat that you won't create it; do not call any tool.\n"
-            "4. If the user asks what their currently existing playlists are, answer them and nicely use Markdown to format the output like so for each playlist:\n"
+            "5. If the user asks what their currently existing playlists are, answer them and nicely use Markdown to format the output like so for each playlist:\n"
             "   <Playlist Name> - [View Playlist](/playlists/<playlist_id>)"
         )
 
@@ -185,20 +186,23 @@ async def chat_endpoint(req: Request, request: ChatRequest):
                         "function_declarations": [
                             propose_playlist,
                             confirm_and_create_playlist,
-                            delete_proposed_playlist
+                            delete_proposed_playlist,
+                            add_tracks_to_proposal,
+                            remove_tracks_from_proposal
                         ]
                     }
                 ],
             ),
             history=formatted_history
         )
+        
         response = chat.send_message(request.message)
 
         # Check for function call
-        if response.candidates[0].content.parts and \
-        response.candidates[0].content.parts[0].function_call:
-
-            function_call = response.candidates[0].content.parts[0].function_call
+        candidate = response.candidates[0] if response.candidates else None
+        
+        if candidate and candidate.content and candidate.content.parts and candidate.content.parts[0].function_call:
+            function_call = candidate.content.parts[0].function_call
             function_name = function_call.name
             print("func name", function_name)
             args = dict(function_call.args)
@@ -257,6 +261,83 @@ async def chat_endpoint(req: Request, request: ChatRequest):
             # -------------------------
             # Confirmation: Gemini infers and calls confirmAndCreatePlaylist
             # -------------------------
+            elif function_name == "addTracksToProposal":
+                if not session_state.get("pending_playlist"):
+                    user_text = "There is no pending playlist to add tracks to. Please ask me to propose one first."
+                else:
+                    track_ids = session_state["pending_playlist"].get("track_ids", [])
+                    tracks_display = session_state["pending_playlist"].get("tracks_display", [])
+                    
+                    added_count = 0
+                    for query in args.get("tracks") or []:
+                        try:
+                            result = search_spotify_songs(
+                                query=query,
+                                type="track",
+                                limit=1,
+                            )
+                            items = (result.get("tracks") or {}).get("items") or []
+                            if items:
+                                t = items[0]
+                                track_ids.append(t["id"])
+                                artists = ", ".join(a["name"] for a in t.get("artists") or [])
+                                
+                                images = t.get("album", {}).get("images", [])
+                                cover_image = images[0].get("url") if images else ""
+                                
+                                tracks_display.append({
+                                    "name": t.get("name", query), 
+                                    "artists": artists, 
+                                    "url": t.get("external_urls", {}).get("spotify", ""),
+                                    "image": cover_image
+                                })
+                                added_count += 1
+                        except Exception:
+                            pass
+                    
+                    session_state["pending_playlist"]["track_ids"] = track_ids
+                    session_state["pending_playlist"]["tracks_display"] = tracks_display
+                    if session_id:
+                        save_session(session_id, session_state)
+                    
+                    user_text = f"Added {added_count} tracks to the proposed playlist. Click **Review** below to see the updated tracks."
+
+            elif function_name == "removeTracksFromProposal":
+                if not session_state.get("pending_playlist"):
+                    user_text = "There is no pending playlist to remove tracks from."
+                else:
+                    track_names_to_remove = set(name.lower() for name in (args.get("track_names") or []))
+                    track_ids = session_state["pending_playlist"].get("track_ids", [])
+                    tracks_display = session_state["pending_playlist"].get("tracks_display", [])
+                    
+                    new_track_ids = []
+                    new_tracks_display = []
+                    removed_count = 0
+                    
+                    for track_id, track_info in zip(track_ids, tracks_display):
+                        track_name_lower = track_info["name"].lower()
+                        matched = False
+                        if track_name_lower in track_names_to_remove:
+                            matched = True
+                        else:
+                            for name_to_remove in track_names_to_remove:
+                                if name_to_remove in track_name_lower:
+                                    matched = True
+                                    break
+                        
+                        if matched:
+                            removed_count += 1
+                        else:
+                            new_track_ids.append(track_id)
+                            new_tracks_display.append(track_info)
+                            
+                    session_state["pending_playlist"]["track_ids"] = new_track_ids
+                    session_state["pending_playlist"]["tracks_display"] = new_tracks_display
+                    if session_id:
+                        save_session(session_id, session_state)
+                        
+                    user_text = f"Removed {removed_count} tracks from the proposed playlist. Click **Review** below to see the updated tracks."
+
             elif function_name == "confirmAndCreatePlaylist" and session_state.get("pending_playlist"):
                 proposal = session_state["pending_playlist"]
                 track_ids = proposal.get("track_ids") or []
@@ -309,7 +390,10 @@ async def chat_endpoint(req: Request, request: ChatRequest):
         # Normal Text Response
         # -------------------------
         else:
-            user_text = response.text
+            try:
+                user_text = response.text
+            except Exception:
+                user_text = "I'm sorry, I couldn't generate a proper response. Please try again."
 
 
         

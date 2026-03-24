@@ -40,3 +40,35 @@ delete_proposed_playlist = {
         "required": []
     }
 }
+
+add_tracks_to_proposal = {
+    "name": "addTracksToProposal",
+    "description": "Call this to add more tracks to the currently proposed playlist. Provide a list of track search queries. Do not call this if no proposal exists.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "tracks": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "List of track search queries to add (e.g. 'Blinding Lights', 'The Weeknd - Save Your Tears')."
+            }
+        },
+        "required": ["tracks"]
+    }
+}
+
+remove_tracks_from_proposal = {
+    "name": "removeTracksFromProposal",
+    "description": "Call this to remove specific tracks from the currently proposed playlist. Provide a list of track names to remove. Do not call this if no proposal exists.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "track_names": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "List of track names exactly as they appear in the proposal to remove."
+            }
+        },
+        "required": ["track_names"]
+    }
+}
