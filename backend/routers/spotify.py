@@ -505,6 +505,8 @@ def add_tracks_to_playlist(playlist_id: str, body: AddTracksRequest, request: Re
 
     return data
 
+
+
 @router.delete("/playlists/{playlist_id}/tracks")
 def remove_tracks_from_playlist(playlist_id: str, body: AddTracksRequest, request: Request):
     """

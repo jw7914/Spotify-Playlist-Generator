@@ -170,10 +170,11 @@ async def chat_endpoint(req: Request, request: ChatRequest):
             "1. Call proposePlaylist with a name, optional description, and a list of track search queries (e.g. song titles or 'artist - song'). "
             "Do not call createPlaylist or addTracksToPlaylist directly.\n"
             "2. The backend will search Spotify for each query, cache the track IDs, and show the user a structured proposal with the actual tracks found (name and artists).\n"
-            "3. If the user wants to add more songs to the proposed playlist, call addTracksToProposal. If they want to remove specific songs, call removeTracksFromProposal.\n"
-            "4. When the user confirms they want it (e.g. 'yes', 'create it', 'sounds good', 'go ahead'), you must call confirmAndCreatePlaylist. "
+            "3. If the user wants MORE songs similar to the ones already generated, use your vast internal knowledge of music to find similar tracks and call addTracksToProposal with those new track search queries.\n"
+            "4. If the user wants to add specific new songs to the proposed playlist, call addTracksToProposal. If they want to remove specific songs, call removeTracksFromProposal.\n"
+            "5. When the user confirms they want it (e.g. 'yes', 'create it', 'sounds good', 'go ahead'), you must call confirmAndCreatePlaylist. "
             "That uses the cached proposal—do not call proposePlaylist again. If the user declines (e.g. 'no', 'cancel'), respond in chat that you won't create it; do not call any tool.\n"
-            "5. If the user asks what their currently existing playlists are, answer them and nicely use Markdown to format the output like so for each playlist:\n"
+            "6. If the user asks what their currently existing playlists are, answer them and nicely use Markdown to format the output like so for each playlist:\n"
             "   <Playlist Name> - [View Playlist](/playlists/<playlist_id>)"
         )
 
