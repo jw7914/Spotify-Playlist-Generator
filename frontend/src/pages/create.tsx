@@ -300,10 +300,10 @@ export default function CreateWithAIPage() {
   };
 
   const starterPrompts = [
-    "Gym workout with high BPM rap",
-    "Sad rainy day jazz",
-    "Cooking dinner for a date",
-    "Roadtrip through the desert 80s style",
+    "Create a mix of my top genres and try to add some acoustic covers",
+    "Make a 20-track playlist based on my top artists for a road trip",
+    "Look at my recent playlists and suggest some new tracks like them",
+    "Surprise me with a chill playlist using my favorite artists"
   ];
 
   return (
