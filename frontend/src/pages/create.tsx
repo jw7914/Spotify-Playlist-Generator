@@ -391,7 +391,7 @@ export default function CreateWithAIPage() {
                 {/* Message Bubble */}
                 <div className="flex flex-col gap-2">
                   <div
-                    className={`p-4 rounded-2xl text-sm md:text-base leading-relaxed whitespace-pre-wrap break-all ${
+                    className={`p-4 rounded-2xl text-sm md:text-base leading-relaxed whitespace-pre-wrap break-words hyphens-auto ${
                       msg.role === "user"
                         ? "bg-[#1DB954] text-black rounded-tr-none font-medium"
                         : "bg-zinc-800 text-zinc-100 rounded-tl-none border border-zinc-700"
@@ -469,7 +469,7 @@ export default function CreateWithAIPage() {
                         {msg.pendingPlaylist && (
                           <Button
                             size="lg"
-                            className="bg-purple-600 text-white font-bold flex-1"
+                            className="bg-[#1DB954] text-black font-bold flex-1"
                             onPress={() => {
                               setReviewPlaylist(msg.pendingPlaylist);
                               onReviewOpen();
@@ -613,6 +613,12 @@ export default function CreateWithAIPage() {
                 <ModalFooter>
                   <Button color="danger" variant="light" onPress={onClose}>
                     Close
+                  </Button>
+                  <Button className="bg-zinc-700 hover:bg-zinc-600 text-white font-bold" onPress={() => {
+                    onClose();
+                    handleSend("No, cancel", reviewPlaylist);
+                  }}>
+                    Cancel Playlist
                   </Button>
                   <Button className="bg-[#1DB954] text-black font-bold" onPress={() => {
                     onClose();
