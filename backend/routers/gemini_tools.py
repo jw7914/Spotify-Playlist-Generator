@@ -72,3 +72,95 @@ remove_tracks_from_proposal = {
         "required": ["track_names"]
     }
 }
+
+get_user_top_artists = {
+    "name": "getUserTopArtists",
+    "description": "Fetch the user's Spotify top artists. Use this when the user asks about their favorite artists or wants music-personality analysis grounded in listening data.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "time_range": {
+                "type": "string",
+                "enum": ["short_term", "medium_term", "long_term"],
+                "description": "Spotify time range. short_term is recent, medium_term is medium-range, long_term is longer-term listening."
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum number of artists to fetch."
+            }
+        },
+        "required": []
+    }
+}
+
+get_user_top_tracks = {
+    "name": "getUserTopTracks",
+    "description": "Fetch the user's Spotify top tracks. Use this when the user asks about their favorite songs or wants music-personality analysis grounded in listening data.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "time_range": {
+                "type": "string",
+                "enum": ["short_term", "medium_term", "long_term"],
+                "description": "Spotify time range. short_term is recent, medium_term is medium-range, long_term is longer-term listening."
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum number of tracks to fetch."
+            }
+        },
+        "required": []
+    }
+}
+
+get_user_top_genres = {
+    "name": "getUserTopGenres",
+    "description": "Fetch the user's top genres inferred from their Spotify top artists. Use this when the user asks about their overall taste profile or genre preferences.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "time_range": {
+                "type": "string",
+                "enum": ["short_term", "medium_term", "long_term"],
+                "description": "Spotify time range. short_term is recent, medium_term is medium-range, long_term is longer-term listening."
+            },
+            "artist_limit": {
+                "type": "integer",
+                "description": "How many top artists to inspect when deriving genres."
+            },
+            "genre_limit": {
+                "type": "integer",
+                "description": "Maximum number of genres to return."
+            }
+        },
+        "required": []
+    }
+}
+
+get_user_taste_profile = {
+    "name": "getUserTasteProfile",
+    "description": "Fetch the user's top artists, top tracks, and top genres together. Use this when the user asks profile questions such as 'what type of person am I?', 'what does my music taste say about me?', or similar identity/taste analysis.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "time_range": {
+                "type": "string",
+                "enum": ["short_term", "medium_term", "long_term"],
+                "description": "Spotify time range. short_term is recent, medium_term is medium-range, long_term is longer-term listening."
+            },
+            "artist_limit": {
+                "type": "integer",
+                "description": "Maximum number of artists to fetch."
+            },
+            "track_limit": {
+                "type": "integer",
+                "description": "Maximum number of tracks to fetch."
+            },
+            "genre_limit": {
+                "type": "integer",
+                "description": "Maximum number of genres to return."
+            }
+        },
+        "required": []
+    }
+}

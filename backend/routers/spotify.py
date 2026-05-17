@@ -709,6 +709,161 @@ def get_user_top_tastes_context(request: Request) -> str:
         
     return "\n" + "\n".join(context_lines)
 
+
+def _get_spotify_user_access_token(request: Request) -> str | None:
+    if not request:
+        return None
+
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token:
+        return None
+
+    try:
+        expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except Exception:
+        expires_at = 0
+
+    if datetime.now().timestamp() > expires_at:
+        token_data = handle_token_refresh(refresh_token)
+        if not token_data:
+            return None
+        access_token = token_data.get("access_token")
+
+    return access_token
+
+
+def get_user_top_artists_data(
+    request: Request,
+    time_range: str = "medium_term",
+    limit: int = 10,
+) -> list[dict]:
+    access_token = _get_spotify_user_access_token(request)
+    if not access_token:
+        return []
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {"time_range": time_range, "limit": limit}
+    url = f"{API_BASE_URL}/me/top/artists?{urllib.parse.urlencode(params)}"
+
+    try:
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        print(f"Failed to fetch top artists data: {e}")
+        return []
+
+    artists = []
+    for a in data.get("items", []):
+        artists.append({
+            "id": a.get("id"),
+            "name": a.get("name"),
+            "genres": a.get("genres", []),
+            "popularity": a.get("popularity"),
+            "external_url": (a.get("external_urls") or {}).get("spotify"),
+        })
+
+    return artists
+
+
+def get_user_top_tracks_data(
+    request: Request,
+    time_range: str = "medium_term",
+    limit: int = 10,
+) -> list[dict]:
+    access_token = _get_spotify_user_access_token(request)
+    if not access_token:
+        return []
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {"time_range": time_range, "limit": limit}
+    url = f"{API_BASE_URL}/me/top/tracks?{urllib.parse.urlencode(params)}"
+
+    try:
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        print(f"Failed to fetch top tracks data: {e}")
+        return []
+
+    tracks = []
+    for t in data.get("items", []):
+        tracks.append({
+            "id": t.get("id"),
+            "name": t.get("name"),
+            "artists": [a.get("name") for a in t.get("artists", []) if a.get("name")],
+            "album": t.get("album", {}).get("name"),
+            "external_url": (t.get("external_urls") or {}).get("spotify"),
+        })
+
+    return tracks
+
+
+def get_user_top_genres_data(
+    request: Request,
+    time_range: str = "medium_term",
+    artist_limit: int = 20,
+    genre_limit: int = 10,
+) -> list[dict]:
+    artists = get_user_top_artists_data(
+        request=request,
+        time_range=time_range,
+        limit=artist_limit,
+    )
+    if not artists:
+        return []
+
+    genre_counts: dict[str, int] = {}
+    for artist in artists:
+        for genre in artist.get("genres", []):
+            genre_counts[genre] = genre_counts.get(genre, 0) + 1
+
+    ranked_genres = sorted(
+        genre_counts.items(),
+        key=lambda item: (-item[1], item[0]),
+    )
+
+    return [
+        {"name": genre, "artist_count": count}
+        for genre, count in ranked_genres[:genre_limit]
+    ]
+
+
+def get_user_taste_profile_data(
+    request: Request,
+    time_range: str = "medium_term",
+    artist_limit: int = 10,
+    track_limit: int = 10,
+    genre_limit: int = 10,
+) -> dict:
+    artists = get_user_top_artists_data(
+        request=request,
+        time_range=time_range,
+        limit=artist_limit,
+    )
+    tracks = get_user_top_tracks_data(
+        request=request,
+        time_range=time_range,
+        limit=track_limit,
+    )
+    genres = get_user_top_genres_data(
+        request=request,
+        time_range=time_range,
+        artist_limit=max(artist_limit, genre_limit),
+        genre_limit=genre_limit,
+    )
+
+    return {
+        "time_range": time_range,
+        "top_artists": artists,
+        "top_tracks": tracks,
+        "top_genres": genres,
+    }
+
 def create_playlist(
     name: str,
     description: str | None = None,

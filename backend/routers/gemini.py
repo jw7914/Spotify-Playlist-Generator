@@ -14,6 +14,10 @@ from backend.routers.spotify import (
     get_current_user_id,
     get_user_playlists_context,
     get_user_top_tastes_context,
+    get_user_top_artists_data,
+    get_user_top_tracks_data,
+    get_user_top_genres_data,
+    get_user_taste_profile_data,
 )
 import redis
 import json
@@ -48,6 +52,62 @@ except Exception as e:
     client = None
 
 GEMINI_MODEL = "gemini-2.5-flash"
+
+
+def _clamp_int(value, default: int, minimum: int, maximum: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(minimum, min(parsed, maximum))
+
+
+def _normalize_time_range(value) -> str:
+    allowed = {"short_term", "medium_term", "long_term"}
+    if value in allowed:
+        return value
+    return "medium_term"
+
+
+def _generate_taste_analysis_response(
+    *,
+    user_message: str,
+    history: list[types.Content],
+    tool_name: str,
+    tool_payload: dict,
+) -> str:
+    analysis_instruction = (
+        "You are a Spotify AI DJ analyzing a user's listening taste.\n"
+        "Answer the user's question using only the provided Spotify data.\n"
+        "Be specific, grounded, and a little insightful without overclaiming.\n"
+        "If the user asks a personality-style question like 'what type of person am I?', frame it as an interpretation of their music taste rather than a factual judgment.\n"
+        "Reference concrete artists, tracks, and genres from the data when useful.\n"
+        "If the data is sparse, say that explicitly."
+    )
+    analysis_prompt = (
+        f"User question: {user_message}\n\n"
+        f"Tool used: {tool_name}\n"
+        f"Spotify taste data:\n{json.dumps(tool_payload, indent=2)}"
+    )
+
+    try:
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            config=types.GenerateContentConfig(
+                system_instruction=analysis_instruction,
+            ),
+            contents=[
+                *history,
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text=analysis_prompt)],
+                ),
+            ],
+        )
+        return response.text or "I couldn't turn your listening data into a useful answer."
+    except Exception as e:
+        print(f"Failed to generate taste analysis response: {e}")
+        return "I could fetch your listening taste data, but I couldn't turn it into a useful answer right now."
 
 def check_api_key():
     if not GEMINI_API_KEY:
@@ -168,6 +228,9 @@ async def chat_endpoint(req: Request, request: ChatRequest):
         system_instruction_text = (
             "You are a Spotify AI DJ. Your goal is to help users build playlists based on their feelings, moods, or described scenarios.\n\n"
             f"{playlist_context}\n{tastes_context}\n\n"
+            "If the user asks about their taste profile, favorite artists, favorite tracks, top genres, or asks personality-style questions based on listening habits such as 'what type of person am I?' or 'what does my music taste say about me?', use the taste tools instead of guessing.\n"
+            "For broad profile questions, call getUserTasteProfile.\n"
+            "For narrower factual questions, call getUserTopArtists, getUserTopTracks, or getUserTopGenres as appropriate.\n"
             "When a user describes a scenario or asks for a playlist:\n"
             "1. Call proposePlaylist with a name, optional description, and a list of track search queries (e.g. song titles or 'artist - song'). "
             "Do not call createPlaylist or addTracksToPlaylist directly.\n"
@@ -191,7 +254,11 @@ async def chat_endpoint(req: Request, request: ChatRequest):
                             confirm_and_create_playlist,
                             delete_proposed_playlist,
                             add_tracks_to_proposal,
-                            remove_tracks_from_proposal
+                            remove_tracks_from_proposal,
+                            get_user_top_artists,
+                            get_user_top_tracks,
+                            get_user_top_genres,
+                            get_user_taste_profile,
                         ]
                     }
                 ],
@@ -386,6 +453,97 @@ async def chat_endpoint(req: Request, request: ChatRequest):
 
             elif function_name == "deleteProposedPlaylist" and not session_state.get("pending_playlist"):
                 user_text = "There's no pending playlist to delete."
+
+            elif function_name == "getUserTopArtists":
+                time_range = _normalize_time_range(args.get("time_range"))
+                limit = _clamp_int(args.get("limit"), default=10, minimum=1, maximum=25)
+                artists = get_user_top_artists_data(
+                    request=req,
+                    time_range=time_range,
+                    limit=limit,
+                )
+                if not artists:
+                    user_text = "I couldn't access your top artists right now. Make sure you're logged in to Spotify and have enough listening history."
+                else:
+                    user_text = _generate_taste_analysis_response(
+                        user_message=request.message,
+                        history=formatted_history,
+                        tool_name=function_name,
+                        tool_payload={
+                            "time_range": time_range,
+                            "top_artists": artists,
+                        },
+                    )
+
+            elif function_name == "getUserTopTracks":
+                time_range = _normalize_time_range(args.get("time_range"))
+                limit = _clamp_int(args.get("limit"), default=10, minimum=1, maximum=25)
+                tracks = get_user_top_tracks_data(
+                    request=req,
+                    time_range=time_range,
+                    limit=limit,
+                )
+                if not tracks:
+                    user_text = "I couldn't access your top tracks right now. Make sure you're logged in to Spotify and have enough listening history."
+                else:
+                    user_text = _generate_taste_analysis_response(
+                        user_message=request.message,
+                        history=formatted_history,
+                        tool_name=function_name,
+                        tool_payload={
+                            "time_range": time_range,
+                            "top_tracks": tracks,
+                        },
+                    )
+
+            elif function_name == "getUserTopGenres":
+                time_range = _normalize_time_range(args.get("time_range"))
+                artist_limit = _clamp_int(args.get("artist_limit"), default=20, minimum=1, maximum=50)
+                genre_limit = _clamp_int(args.get("genre_limit"), default=10, minimum=1, maximum=20)
+                genres = get_user_top_genres_data(
+                    request=req,
+                    time_range=time_range,
+                    artist_limit=artist_limit,
+                    genre_limit=genre_limit,
+                )
+                if not genres:
+                    user_text = "I couldn't derive your top genres right now. Make sure you're logged in to Spotify and have enough listening history."
+                else:
+                    user_text = _generate_taste_analysis_response(
+                        user_message=request.message,
+                        history=formatted_history,
+                        tool_name=function_name,
+                        tool_payload={
+                            "time_range": time_range,
+                            "top_genres": genres,
+                        },
+                    )
+
+            elif function_name == "getUserTasteProfile":
+                time_range = _normalize_time_range(args.get("time_range"))
+                artist_limit = _clamp_int(args.get("artist_limit"), default=10, minimum=1, maximum=25)
+                track_limit = _clamp_int(args.get("track_limit"), default=10, minimum=1, maximum=25)
+                genre_limit = _clamp_int(args.get("genre_limit"), default=10, minimum=1, maximum=20)
+                profile = get_user_taste_profile_data(
+                    request=req,
+                    time_range=time_range,
+                    artist_limit=artist_limit,
+                    track_limit=track_limit,
+                    genre_limit=genre_limit,
+                )
+                has_profile_data = any(
+                    profile.get(key)
+                    for key in ("top_artists", "top_tracks", "top_genres")
+                )
+                if not has_profile_data:
+                    user_text = "I couldn't access your Spotify taste profile right now. Make sure you're logged in to Spotify and have enough listening history."
+                else:
+                    user_text = _generate_taste_analysis_response(
+                        user_message=request.message,
+                        history=formatted_history,
+                        tool_name=function_name,
+                        tool_payload=profile,
+                    )
 
             elif function_name == "confirmAndCreatePlaylist" and session_state.get("awaiting_confirmation"):
                 user_text = "Please respond with 'yes', 'create it', 'sounds good', or 'go ahead' to confirm the proposed playlist, or 'no', 'cancel', 'never mind' to reject it."
