@@ -518,14 +518,14 @@ export default function CreateWithAIPage() {
 
         {/* Suggestions */}
         {messages.length < 3 && (
-          <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide z-10 shrink-0">
+          <div className="flex flex-nowrap gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide z-10 shrink-0">
             {starterPrompts.map((prompt) => (
               <Chip
                 key={prompt}
                 as="button"
                 isDisabled={isLoading}
                 variant="flat"
-                className={`hover:bg-zinc-700 cursor-pointer transition-colors border border-white/5 bg-zinc-800 text-zinc-300 py-4 ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+                className={`shrink-0 hover:bg-zinc-700 cursor-pointer transition-colors border border-white/5 bg-zinc-800 text-zinc-300 py-4 ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
                 onClick={() => !isLoading && setInput(prompt)}
               >
                 {prompt}
