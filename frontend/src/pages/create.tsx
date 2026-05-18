@@ -264,14 +264,23 @@ export default function CreateWithAIPage() {
         data.text.toLowerCase().includes("track list") ||
         data.text.toLowerCase().includes("songs");
 
+      const createdPlaylistPreview =
+        data.text.toLowerCase().includes("created successfully") && finalPlaylistOverride
+          ? {
+              name: finalPlaylistOverride.name,
+              description: finalPlaylistOverride.description,
+              trackCount: finalPlaylistOverride.tracks_display?.length ?? 0,
+              image: finalPlaylistOverride.tracks_display?.[0]?.image ?? null,
+              stateLabel: "Saved to Spotify",
+            }
+          : undefined;
+
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
         role: "ai",
         content: data.text,
         type: isPlaylistContext ? "playlist-preview" : "text",
-        playlistData: isPlaylistContext
-          ? { name: "Generated Mix", trackCount: "20+", id: data.playlist_id } // Placeholder
-          : undefined,
+        playlistData: createdPlaylistPreview,
         isAwaitingConfirmation: data.is_awaiting_confirmation,
         pendingPlaylist: data.pending_playlist,
       };
@@ -377,13 +386,13 @@ export default function CreateWithAIPage() {
                   {msg.role === "ai" ? (
                     <Avatar
                       icon={<Bot size={20} />}
-                      classNames={{ base: "bg-zinc-800 text-zinc-400" }}
+                      classNames={{ base: "bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg" }}
                     />
                   ) : (
                     <Avatar
                       src={user?.images?.[0]?.url}
                       icon={<User size={20} />}
-                      classNames={{ base: "bg-green-600 text-black" }}
+                      classNames={{ base: "bg-zinc-800 text-white border border-white/10" }}
                     />
                   )}
                 </div>
@@ -393,8 +402,8 @@ export default function CreateWithAIPage() {
                   <div
                     className={`p-4 rounded-2xl text-sm md:text-base leading-relaxed whitespace-pre-wrap break-words hyphens-auto ${
                       msg.role === "user"
-                        ? "bg-[#1DB954] text-black rounded-tr-none font-medium"
-                        : "bg-zinc-800 text-zinc-100 rounded-tl-none border border-zinc-700"
+                        ? "bg-[#1DB954]/10 text-green-100 rounded-tr-none font-medium border border-[#1DB954]/20"
+                        : "bg-zinc-900 text-zinc-100 rounded-tl-none border border-zinc-800"
                     }`}
                   >
                     <ReactMarkdown
@@ -446,7 +455,7 @@ export default function CreateWithAIPage() {
                     >
                       {cleanText}
                     </ReactMarkdown>
-                    {spotifyUrl && (
+                    {spotifyUrl && !msg.playlistData && (
                       <div className="flex flex-col sm:flex-row gap-4 sm:gap-2 mt-3 w-full">
                         <Button
                           className="bg-[#1DB954] text-black font-bold flex-1"
@@ -464,34 +473,94 @@ export default function CreateWithAIPage() {
                         </Button>
                       </div>
                     )}
-                    {msg.isAwaitingConfirmation && index === messages.length - 1 && (
-                      <div className="flex flex-col sm:flex-row gap-4 sm:gap-2 mt-3 w-full">
-                        {msg.pendingPlaylist && (
-                          <Button
-                            size="lg"
-                            className="bg-[#1DB954] text-black font-bold flex-1"
-                            onPress={() => {
-                              setReviewPlaylist(msg.pendingPlaylist);
-                              onReviewOpen();
-                            }}
-                            isDisabled={isLoading}
-                          >
-                            Review
-                          </Button>
+                  </div>
+                  {spotifyUrl && msg.playlistData && (
+                    <div className="w-full max-w-sm rounded-[28px] border border-white/10 bg-black/70 p-4 shadow-[0_18px_48px_rgba(0,0,0,0.35)] backdrop-blur-md">
+                      <div className="flex items-center gap-4">
+                        {msg.playlistData.image ? (
+                          <img
+                            src={msg.playlistData.image}
+                            alt={msg.playlistData.name}
+                            className="h-16 w-16 rounded-2xl object-cover shrink-0"
+                          />
+                        ) : (
+                          <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-pink-500 to-orange-400 shrink-0" />
                         )}
+                        <div className="min-w-0">
+                          <p className="text-xl font-bold text-white truncate">
+                            {msg.playlistData.name}
+                          </p>
+                          <p className="text-sm text-zinc-500">
+                            {msg.playlistData.trackCount} Songs • {msg.playlistData.stateLabel}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 flex flex-col gap-2">
                         <Button
                           size="lg"
-                          className="bg-zinc-700 text-white font-bold flex-1"
+                          className="w-full bg-[#1DB954] text-black font-bold"
+                          onPress={() => window.open(spotifyUrl, "_blank", "noopener,noreferrer")}
+                          startContent={<Music size={18} />}
+                        >
+                          View on Spotify
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="w-full bg-zinc-800 text-white font-medium"
+                          onPress={() => navigate("/playlists")}
+                          startContent={<Disc3 size={16} />}
+                        >
+                          View My Playlists
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {msg.isAwaitingConfirmation && index === messages.length - 1 && msg.pendingPlaylist && (
+                    <div className="w-full max-w-sm rounded-[28px] border border-white/10 bg-black/70 p-4 shadow-[0_18px_48px_rgba(0,0,0,0.35)] backdrop-blur-md">
+                      <div className="flex items-center gap-4">
+                        {msg.pendingPlaylist.tracks_display?.[0]?.image ? (
+                          <img
+                            src={msg.pendingPlaylist.tracks_display[0].image}
+                            alt={msg.pendingPlaylist.name}
+                            className="h-16 w-16 rounded-2xl object-cover shrink-0"
+                          />
+                        ) : (
+                          <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-pink-500 to-orange-400 shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-xl font-bold text-white truncate">
+                            {msg.pendingPlaylist.name}
+                          </p>
+                          <p className="text-sm text-zinc-500">
+                            {msg.pendingPlaylist.tracks_display?.length ?? 0} Songs • Ready to review
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 flex flex-col gap-2">
+                        <Button
+                          size="lg"
+                          className="w-full bg-[#1DB954] text-black font-bold"
+                          onPress={() => {
+                            setReviewPlaylist(msg.pendingPlaylist);
+                            onReviewOpen();
+                          }}
+                          isDisabled={isLoading}
+                        >
+                          Review Playlist
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="w-full bg-zinc-800 text-white font-medium"
                           onPress={() => handleSend("No, cancel")}
                           isDisabled={isLoading}
                         >
                           Cancel
                         </Button>
                       </div>
-                    )}
-                  </div>
-
-                 
+                    </div>
+                  )}
                 </div>
               </div>
             );

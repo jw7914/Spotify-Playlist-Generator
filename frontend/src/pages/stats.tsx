@@ -103,8 +103,6 @@ export default function StatsPage() {
         })
         .catch((err) => console.error("Failed to load artists for genres", err))
         .finally(() => setGenresLoading(false));
-        
-
     }
   }, [isAuthenticated, timeRange]);
 

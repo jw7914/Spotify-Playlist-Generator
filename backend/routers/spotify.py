@@ -6,9 +6,18 @@ import urllib.error
 import json
 import base64
 import secrets
+from collections import Counter
 from datetime import datetime
 import os
-from backend.routers.spotify_models import CreatePlaylistRequest, AddTracksRequest
+from backend.routers.spotify_models import (
+    CreatePlaylistRequest,
+    AddTracksRequest,
+    UpdatePlaylistRequest,
+    SaveIdsRequest,
+    TransferPlaybackRequest,
+    AddToQueueRequest,
+    SetPlaylistImageRequest,
+)
 
 API_BASE_URL = "https://api.spotify.com/v1"
 STATE_TTL = 300
@@ -48,6 +57,43 @@ def get_app_token():
     except Exception as e:
         print(f"Failed to fetch Spotify token: {e}")
         return None
+
+
+def _get_valid_user_access_token(request: Request):
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except Exception:
+        expires_at = 0
+
+    new_cookie_needed = False
+    if datetime.now().timestamp() > expires_at:
+        token_data = handle_token_refresh(refresh_token)
+        if not token_data:
+            raise HTTPException(status_code=401, detail="Session expired")
+        access_token = token_data.get("access_token")
+        expires_at = datetime.now().timestamp() + (token_data.get("expires_in") or 0)
+        new_cookie_needed = True
+
+    return access_token, expires_at, new_cookie_needed
+
+
+def _spotify_json_request(url: str, headers: dict, method: str = "GET", payload=None, timeout: int = 10):
+    data_bytes = None
+    if payload is not None:
+        data_bytes = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data_bytes, headers=headers, method=method)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        body = resp.read()
+        if not body:
+            return None
+        return json.loads(body.decode("utf-8"))
 
 # --- Helper: Token Refresh Logic ---
 def handle_token_refresh(refresh_token: str):
@@ -119,7 +165,13 @@ def get_current_user_id(request: Request) -> str:
 
 @router.get("/auth/login")
 def login():
-    scope = "user-read-private user-read-email user-top-read user-read-recently-played user-read-currently-playing user-read-playback-state user-modify-playback-state playlist-modify-public playlist-modify-private playlist-read-private playlist-read-collaborative"
+    scope = (
+        "user-read-private user-read-email user-top-read "
+        "user-read-recently-played user-read-currently-playing user-read-playback-state "
+        "user-modify-playback-state user-library-read user-library-modify "
+        "user-follow-read user-follow-modify ugc-image-upload "
+        "playlist-modify-public playlist-modify-private playlist-read-private playlist-read-collaborative"
+    )
     state = secrets.token_urlsafe(16)
     params = {
         "client_id": SPOTIFY_CLIENT_ID,
@@ -352,6 +404,7 @@ def get_playlist_details(playlist_id: str, request: Request):
         "id": data.get("id"),
         "name": data.get("name"),
         "description": data.get("description"),
+        "public": data.get("public"),
         "images": data.get("images", []),
         "owner": {
             "display_name": data.get("owner", {}).get("display_name"),
@@ -1400,3 +1453,735 @@ def search_spotify(request: Request, q: str, type: str = "track", limit: int = 2
     # For now, returning standard Spotify search response structure.
     
     return data
+
+
+@router.get("/recommendations")
+def get_recommendations(request: Request, limit: int = 12):
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+    expires_at_raw = request.cookies.get("expires_at")
+
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        expires_at = float(expires_at_raw) if expires_at_raw else 0
+    except Exception:
+        expires_at = 0
+
+    new_cookie_needed = False
+    if datetime.now().timestamp() > expires_at:
+        token_data = handle_token_refresh(refresh_token)
+        if not token_data:
+            raise HTTPException(status_code=401, detail="Session expired")
+        access_token = token_data.get("access_token")
+        expires_at = datetime.now().timestamp() + (token_data.get("expires_in") or 0)
+        new_cookie_needed = True
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    def fetch_json(url: str):
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
+    def normalize_name(value: str | None) -> str:
+        return (value or "").strip().lower()
+
+    def avg(values: list[float]) -> float | None:
+        if not values:
+            return None
+        return sum(values) / len(values)
+
+    def fetch_audio_features(track_ids: list[str]) -> dict[str, dict]:
+        unique_ids = [track_id for track_id in dict.fromkeys(track_ids) if track_id]
+        features_by_id: dict[str, dict] = {}
+        for start in range(0, len(unique_ids), 100):
+            batch = unique_ids[start:start + 100]
+            if not batch:
+                continue
+            try:
+                data = fetch_json(
+                    f"{API_BASE_URL}/audio-features?{urllib.parse.urlencode({'ids': ','.join(batch)})}"
+                )
+            except Exception as exc:
+                print(f"Failed to fetch audio features for recommendations: {exc}")
+                continue
+            for feature in data.get("audio_features", []) if data else []:
+                if feature and feature.get("id"):
+                    features_by_id[feature["id"]] = feature
+        return features_by_id
+
+    def extract_seed_genres(artists: list[dict], available_genres: set[str], limit_count: int = 5) -> list[str]:
+        genre_counter: Counter[str] = Counter()
+        for artist in artists:
+            popularity = artist.get("popularity") or 0
+            for genre in artist.get("genres", []):
+                if genre in available_genres:
+                    genre_counter[genre] += max(1, popularity // 10)
+        return [genre for genre, _ in genre_counter.most_common(limit_count)]
+
+    try:
+        top_artists_by_range = {
+            "short_term": get_user_top_artists_data(request, "short_term", 8),
+            "medium_term": get_user_top_artists_data(request, "medium_term", 8),
+            "long_term": get_user_top_artists_data(request, "long_term", 8),
+        }
+        top_tracks_by_range = {
+            "short_term": get_user_top_tracks_data(request, "short_term", 8),
+            "medium_term": get_user_top_tracks_data(request, "medium_term", 8),
+            "long_term": get_user_top_tracks_data(request, "long_term", 8),
+        }
+        recent_tracks: list[dict] = []
+        try:
+            recent_data = fetch_json(f"{API_BASE_URL}/me/player/recently-played?limit=10")
+            recent_tracks = [
+                item.get("track", {})
+                for item in recent_data.get("items", [])
+                if item.get("track", {}).get("id")
+            ]
+        except Exception as exc:
+            print(f"Failed to fetch recent tracks for recommendations: {exc}")
+
+        all_top_artists = [
+            artist
+            for bucket in top_artists_by_range.values()
+            for artist in bucket
+            if artist.get("id")
+        ]
+        all_top_tracks = [
+            track
+            for bucket in top_tracks_by_range.values()
+            for track in bucket
+            if track.get("id")
+        ]
+
+        if not all_top_tracks and not all_top_artists and not recent_tracks:
+            raise HTTPException(status_code=404, detail="Not enough listening history for recommendations")
+
+        app_token = get_app_token()
+        available_genres: set[str] = set()
+        if app_token:
+            try:
+                app_headers = {"Authorization": f"Bearer {app_token}"}
+                genres_data = _spotify_json_request(
+                    f"{API_BASE_URL}/recommendations/available-genre-seeds",
+                    app_headers,
+                )
+                available_genres = set((genres_data or {}).get("genres", []))
+            except Exception as exc:
+                print(f"Failed to fetch available genre seeds for recommendations: {exc}")
+
+        weighted_track_ids: list[str] = []
+        weighted_artist_ids: list[str] = []
+        for time_range, multiplier in (("short_term", 3), ("medium_term", 2), ("long_term", 1)):
+            for track in top_tracks_by_range[time_range]:
+                weighted_track_ids.extend([track["id"]] * multiplier)
+            for artist in top_artists_by_range[time_range]:
+                weighted_artist_ids.extend([artist["id"]] * multiplier)
+        for track in recent_tracks[:5]:
+            weighted_track_ids.extend([track["id"]] * 4)
+            for artist in track.get("artists", []):
+                if artist.get("id"):
+                    weighted_artist_ids.extend([artist["id"]] * 2)
+
+        seed_tracks = [track_id for track_id, _ in Counter(weighted_track_ids).most_common(2)]
+        seed_artists = [artist_id for artist_id, _ in Counter(weighted_artist_ids).most_common(2)]
+        seed_genres = extract_seed_genres(all_top_artists, available_genres, 3)
+
+        # Spotify recommendations accepts a total of 5 seeds.
+        seed_plan: list[tuple[str, list[str]]] = [
+            ("seed_tracks", seed_tracks),
+            ("seed_artists", seed_artists),
+            ("seed_genres", seed_genres),
+        ]
+        final_seed_params: dict[str, str] = {}
+        used_seed_slots = 0
+        for key, values in seed_plan:
+            if used_seed_slots >= 5:
+                break
+            allowed = values[: max(0, 5 - used_seed_slots)]
+            if allowed:
+                final_seed_params[key] = ",".join(allowed)
+                used_seed_slots += len(allowed)
+
+        profile_track_ids: list[str] = []
+        profile_track_ids.extend([track["id"] for track in top_tracks_by_range["short_term"][:5]])
+        profile_track_ids.extend([track["id"] for track in top_tracks_by_range["medium_term"][:5]])
+        profile_track_ids.extend([track["id"] for track in top_tracks_by_range["long_term"][:5]])
+        profile_track_ids.extend([track.get("id") for track in recent_tracks[:5] if track.get("id")])
+        features_by_id = fetch_audio_features(profile_track_ids)
+
+        feature_fields = [
+            "danceability",
+            "energy",
+            "valence",
+            "acousticness",
+            "instrumentalness",
+            "speechiness",
+        ]
+        target_audio_profile: dict[str, float] = {}
+        for field in feature_fields:
+            values = [
+                float(features_by_id[track_id][field])
+                for track_id in profile_track_ids
+                if track_id in features_by_id and features_by_id[track_id].get(field) is not None
+            ]
+            field_avg = avg(values)
+            if field_avg is not None:
+                target_audio_profile[field] = round(field_avg, 3)
+
+        tempo_values = [
+            float(features_by_id[track_id]["tempo"])
+            for track_id in profile_track_ids
+            if track_id in features_by_id and features_by_id[track_id].get("tempo") is not None
+        ]
+        tempo_avg = avg(tempo_values)
+        if tempo_avg is not None:
+            target_audio_profile["tempo"] = round(tempo_avg, 2)
+
+        params = {
+            "limit": max(15, min(limit * 2, 30)),
+            "market": "from_token",
+        }
+        params.update(final_seed_params)
+        for field, value in target_audio_profile.items():
+            params[f"target_{field}"] = value
+
+        recs_data = fetch_json(f"{API_BASE_URL}/recommendations?{urllib.parse.urlencode(params)}")
+    except urllib.error.HTTPError as he:
+        if he.code == 401:
+            raise HTTPException(status_code=401, detail="Spotify token invalid or expired.")
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {e}")
+
+    user_top_artist_ids = {artist["id"] for artist in all_top_artists if artist.get("id")}
+    user_top_artist_names = {
+        normalize_name(artist.get("name"))
+        for artist in all_top_artists
+        if artist.get("name")
+    }
+    user_recent_artist_names = {
+        normalize_name(artist.get("name"))
+        for track in recent_tracks
+        for artist in track.get("artists", [])
+        if artist.get("name")
+    }
+    source_track_ids = {
+        track["id"]
+        for track in all_top_tracks
+        if track.get("id")
+    } | {
+        track.get("id")
+        for track in recent_tracks
+        if track.get("id")
+    }
+
+    candidate_tracks = recs_data.get("tracks", []) if recs_data else []
+    candidate_features = fetch_audio_features([track.get("id") for track in candidate_tracks if track.get("id")])
+    seen_signatures: set[tuple[str, tuple[str, ...]]] = set()
+    scored_tracks: list[tuple[float, dict]] = []
+
+    for track in candidate_tracks:
+        track_id = track.get("id")
+        if not track_id or track_id in source_track_ids:
+            continue
+
+        track_name = normalize_name(track.get("name"))
+        artist_names = tuple(
+            normalize_name(artist.get("name"))
+            for artist in track.get("artists", [])
+            if artist.get("name")
+        )
+        signature = (track_name, artist_names)
+        if signature in seen_signatures:
+            continue
+        seen_signatures.add(signature)
+
+        feature = candidate_features.get(track_id, {})
+        audio_distance = 0.0
+        compared_fields = 0
+        for field in feature_fields + ["tempo"]:
+            target_value = target_audio_profile.get(field)
+            candidate_value = feature.get(field)
+            if target_value is None or candidate_value is None:
+                continue
+            if field == "tempo":
+                audio_distance += min(abs(float(candidate_value) - float(target_value)) / 60.0, 1.0)
+            else:
+                audio_distance += abs(float(candidate_value) - float(target_value))
+            compared_fields += 1
+        audio_match = 1.0 - (audio_distance / compared_fields) if compared_fields else 0.5
+
+        artist_id_match = sum(
+            1 for artist in track.get("artists", [])
+            if artist.get("id") in user_top_artist_ids
+        )
+        artist_name_match = sum(
+            1 for artist in artist_names
+            if artist in user_top_artist_names or artist in user_recent_artist_names
+        )
+        popularity = track.get("popularity") or 0
+        popularity_score = max(0.0, 1.0 - (popularity / 100.0))
+
+        score = (
+            audio_match * 0.55
+            + min(artist_id_match, 2) * 0.14
+            + min(artist_name_match, 2) * 0.08
+            + popularity_score * 0.12
+            + (0.06 if popularity <= 75 else 0.0)
+        )
+        scored_tracks.append((score, track))
+
+    scored_tracks.sort(
+        key=lambda item: (
+            -item[0],
+            item[1].get("popularity") or 0,
+            item[1].get("name") or "",
+        )
+    )
+
+    tracks = []
+    for _, t in scored_tracks[: max(1, min(limit, 20))]:
+        tracks.append({
+            "id": t.get("id"),
+            "name": t.get("name"),
+            "artists": [{"name": a.get("name")} for a in t.get("artists", [])],
+            "album": {
+                "name": t.get("album", {}).get("name"),
+                "image": t.get("album", {}).get("images", [{}])[0].get("url")
+            },
+            "duration_ms": t.get("duration_ms"),
+            "uri": t.get("uri"),
+            "external_url": (t.get("external_urls") or {}).get("spotify"),
+        })
+
+    payload = {
+        "tracks": tracks,
+        "seed_summary": {
+            "track_count": len(final_seed_params.get("seed_tracks", "").split(",")) if final_seed_params.get("seed_tracks") else 0,
+            "artist_count": len(final_seed_params.get("seed_artists", "").split(",")) if final_seed_params.get("seed_artists") else 0,
+            "genre_count": len(final_seed_params.get("seed_genres", "").split(",")) if final_seed_params.get("seed_genres") else 0,
+        },
+        "profile_summary": {
+            "top_genres": seed_genres,
+            "recent_track_count": len(recent_tracks),
+            "audio_targets": target_audio_profile,
+            "reranked": True,
+        },
+    }
+
+    if new_cookie_needed:
+        resp = JSONResponse(payload)
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+
+    return payload
+
+
+@router.get("/audio-features")
+def get_audio_features(request: Request, ids: str):
+    access_token = get_app_token()
+    if not access_token:
+        raise HTTPException(status_code=500, detail="Failed to get app token")
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    url = f"{API_BASE_URL}/audio-features?{urllib.parse.urlencode({'ids': ids})}"
+    try:
+        data = _spotify_json_request(url, headers)
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+
+    return {"audio_features": data.get("audio_features", []) if data else []}
+
+
+@router.get("/artists/{artist_id}/related-artists")
+def get_related_artists(artist_id: str):
+    access_token = get_app_token()
+    if not access_token:
+        raise HTTPException(status_code=500, detail="Failed to get app token")
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    url = f"{API_BASE_URL}/artists/{artist_id}/related-artists"
+    try:
+        data = _spotify_json_request(url, headers)
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    return {"artists": data.get("artists", []) if data else []}
+
+
+@router.get("/artists/{artist_id}/top-tracks")
+def get_artist_top_tracks(artist_id: str, market: str = "US"):
+    access_token = get_app_token()
+    if not access_token:
+        raise HTTPException(status_code=500, detail="Failed to get app token")
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    url = f"{API_BASE_URL}/artists/{artist_id}/top-tracks?{urllib.parse.urlencode({'market': market})}"
+    try:
+        data = _spotify_json_request(url, headers)
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    return {"tracks": data.get("tracks", []) if data else []}
+
+
+@router.get("/albums/{album_id}")
+def get_album(album_id: str):
+    access_token = get_app_token()
+    if not access_token:
+        raise HTTPException(status_code=500, detail="Failed to get app token")
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    try:
+        data = _spotify_json_request(f"{API_BASE_URL}/albums/{album_id}", headers)
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    return data or {}
+
+
+@router.get("/albums/{album_id}/tracks")
+def get_album_tracks(album_id: str, limit: int = 50, offset: int = 0):
+    access_token = get_app_token()
+    if not access_token:
+        raise HTTPException(status_code=500, detail="Failed to get app token")
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {"limit": limit, "offset": offset}
+    try:
+        data = _spotify_json_request(f"{API_BASE_URL}/albums/{album_id}/tracks?{urllib.parse.urlencode(params)}", headers)
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    return {"items": data.get("items", []) if data else [], "total": data.get("total", 0) if data else 0}
+
+
+@router.get("/me/tracks")
+def get_saved_tracks(request: Request, limit: int = 20, offset: int = 0):
+    access_token, expires_at, new_cookie_needed = _get_valid_user_access_token(request)
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {"limit": limit, "offset": offset}
+    try:
+        data = _spotify_json_request(f"{API_BASE_URL}/me/tracks?{urllib.parse.urlencode(params)}", headers)
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    payload = {"items": data.get("items", []) if data else [], "total": data.get("total", 0) if data else 0}
+    if new_cookie_needed:
+        resp = JSONResponse(payload)
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+    return payload
+
+
+@router.put("/me/tracks")
+def save_tracks(request: Request, body: SaveIdsRequest):
+    access_token, expires_at, new_cookie_needed = _get_valid_user_access_token(request)
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+    try:
+        _spotify_json_request(f"{API_BASE_URL}/me/tracks", headers, method="PUT", payload={"ids": body.ids})
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    payload = {"message": "Tracks saved"}
+    if new_cookie_needed:
+        resp = JSONResponse(payload)
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+    return payload
+
+
+@router.delete("/me/tracks")
+def remove_saved_tracks(request: Request, body: SaveIdsRequest):
+    access_token, expires_at, new_cookie_needed = _get_valid_user_access_token(request)
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+    try:
+        _spotify_json_request(f"{API_BASE_URL}/me/tracks", headers, method="DELETE", payload={"ids": body.ids})
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    payload = {"message": "Tracks removed"}
+    if new_cookie_needed:
+        resp = JSONResponse(payload)
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+    return payload
+
+
+@router.get("/me/albums")
+def get_saved_albums(request: Request, limit: int = 20, offset: int = 0):
+    access_token, expires_at, new_cookie_needed = _get_valid_user_access_token(request)
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {"limit": limit, "offset": offset}
+    try:
+        data = _spotify_json_request(f"{API_BASE_URL}/me/albums?{urllib.parse.urlencode(params)}", headers)
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    payload = {"items": data.get("items", []) if data else [], "total": data.get("total", 0) if data else 0}
+    if new_cookie_needed:
+        resp = JSONResponse(payload)
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+    return payload
+
+
+@router.put("/me/albums")
+def save_albums(request: Request, body: SaveIdsRequest):
+    access_token, expires_at, new_cookie_needed = _get_valid_user_access_token(request)
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+    try:
+        _spotify_json_request(f"{API_BASE_URL}/me/albums", headers, method="PUT", payload={"ids": body.ids})
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    payload = {"message": "Albums saved"}
+    if new_cookie_needed:
+        resp = JSONResponse(payload)
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+    return payload
+
+
+@router.delete("/me/albums")
+def remove_saved_albums(request: Request, body: SaveIdsRequest):
+    access_token, expires_at, new_cookie_needed = _get_valid_user_access_token(request)
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+    try:
+        _spotify_json_request(f"{API_BASE_URL}/me/albums", headers, method="DELETE", payload={"ids": body.ids})
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    payload = {"message": "Albums removed"}
+    if new_cookie_needed:
+        resp = JSONResponse(payload)
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+    return payload
+
+
+@router.get("/me/following")
+def get_followed_artists(request: Request, limit: int = 20, after: str | None = None):
+    access_token, expires_at, new_cookie_needed = _get_valid_user_access_token(request)
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {"type": "artist", "limit": limit}
+    if after:
+        params["after"] = after
+    try:
+        data = _spotify_json_request(f"{API_BASE_URL}/me/following?{urllib.parse.urlencode(params)}", headers)
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    artists_payload = (data or {}).get("artists", {})
+    payload = {"artists": artists_payload.get("items", []), "cursors": artists_payload.get("cursors", {})}
+    if new_cookie_needed:
+        resp = JSONResponse(payload)
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+    return payload
+
+
+@router.put("/me/following")
+def follow_artists(request: Request, body: SaveIdsRequest):
+    access_token, expires_at, new_cookie_needed = _get_valid_user_access_token(request)
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+    params = urllib.parse.urlencode({"type": "artist"})
+    try:
+        _spotify_json_request(f"{API_BASE_URL}/me/following?{params}", headers, method="PUT", payload={"ids": body.ids})
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    payload = {"message": "Artists followed"}
+    if new_cookie_needed:
+        resp = JSONResponse(payload)
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+    return payload
+
+
+@router.delete("/me/following")
+def unfollow_artists(request: Request, body: SaveIdsRequest):
+    access_token, expires_at, new_cookie_needed = _get_valid_user_access_token(request)
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+    params = urllib.parse.urlencode({"type": "artist"})
+    try:
+        _spotify_json_request(f"{API_BASE_URL}/me/following?{params}", headers, method="DELETE", payload={"ids": body.ids})
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    payload = {"message": "Artists unfollowed"}
+    if new_cookie_needed:
+        resp = JSONResponse(payload)
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+    return payload
+
+
+@router.get("/recommendations/available-genre-seeds")
+def get_available_genre_seeds():
+    access_token = get_app_token()
+    if not access_token:
+        raise HTTPException(status_code=500, detail="Failed to get app token")
+    headers = {"Authorization": f"Bearer {access_token}"}
+    try:
+        data = _spotify_json_request(f"{API_BASE_URL}/recommendations/available-genre-seeds", headers)
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    return {"genres": data.get("genres", []) if data else []}
+
+
+@router.put("/playlists/{playlist_id}")
+def update_playlist(playlist_id: str, request: Request, body: UpdatePlaylistRequest):
+    access_token, expires_at, new_cookie_needed = _get_valid_user_access_token(request)
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+    payload = body.model_dump(exclude_none=True)
+    try:
+        _spotify_json_request(f"{API_BASE_URL}/playlists/{playlist_id}", headers, method="PUT", payload=payload)
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    response_payload = {"message": "Playlist updated"}
+    if new_cookie_needed:
+        resp = JSONResponse(response_payload)
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+    return response_payload
+
+
+@router.put("/playlists/{playlist_id}/image")
+def set_playlist_image(playlist_id: str, request: Request, body: SetPlaylistImageRequest):
+    access_token, expires_at, new_cookie_needed = _get_valid_user_access_token(request)
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "image/jpeg"}
+    try:
+        raw = body.image_base64.encode("utf-8")
+        req = urllib.request.Request(f"{API_BASE_URL}/playlists/{playlist_id}/images", data=raw, headers=headers, method="PUT")
+        with urllib.request.urlopen(req, timeout=10):
+            pass
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    response_payload = {"message": "Playlist image updated"}
+    if new_cookie_needed:
+        resp = JSONResponse(response_payload)
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+    return response_payload
+
+
+@router.get("/browse/categories")
+def get_categories(country: str = "US", limit: int = 20, offset: int = 0):
+    access_token = get_app_token()
+    if not access_token:
+        raise HTTPException(status_code=500, detail="Failed to get app token")
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {"country": country, "limit": limit, "offset": offset}
+    try:
+        data = _spotify_json_request(f"{API_BASE_URL}/browse/categories?{urllib.parse.urlencode(params)}", headers)
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    categories = (data or {}).get("categories", {})
+    return {"items": categories.get("items", []), "total": categories.get("total", 0)}
+
+
+@router.get("/browse/featured-playlists")
+def get_featured_playlists(country: str = "US", limit: int = 20, offset: int = 0):
+    access_token = get_app_token()
+    if not access_token:
+        raise HTTPException(status_code=500, detail="Failed to get app token")
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {"country": country, "limit": limit, "offset": offset}
+    try:
+        data = _spotify_json_request(f"{API_BASE_URL}/browse/featured-playlists?{urllib.parse.urlencode(params)}", headers)
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    playlists = (data or {}).get("playlists", {})
+    return {"message": (data or {}).get("message"), "items": playlists.get("items", []), "total": playlists.get("total", 0)}
+
+
+@router.get("/browse/categories/{category_id}/playlists")
+def get_category_playlists(category_id: str, country: str = "US", limit: int = 20, offset: int = 0):
+    access_token = get_app_token()
+    if not access_token:
+        raise HTTPException(status_code=500, detail="Failed to get app token")
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {"country": country, "limit": limit, "offset": offset}
+    try:
+        data = _spotify_json_request(f"{API_BASE_URL}/browse/categories/{category_id}/playlists?{urllib.parse.urlencode(params)}", headers)
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    playlists = (data or {}).get("playlists", {})
+    return {"items": playlists.get("items", []), "total": playlists.get("total", 0)}
+
+
+@router.get("/browse/new-releases")
+def get_new_releases(country: str = "US", limit: int = 20, offset: int = 0):
+    access_token = get_app_token()
+    if not access_token:
+        raise HTTPException(status_code=500, detail="Failed to get app token")
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {"country": country, "limit": limit, "offset": offset}
+    try:
+        data = _spotify_json_request(f"{API_BASE_URL}/browse/new-releases?{urllib.parse.urlencode(params)}", headers)
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    albums = (data or {}).get("albums", {})
+    return {"items": albums.get("items", []), "total": albums.get("total", 0)}
+
+
+@router.get("/player/devices")
+def get_devices(request: Request):
+    access_token, expires_at, new_cookie_needed = _get_valid_user_access_token(request)
+    headers = {"Authorization": f"Bearer {access_token}"}
+    try:
+        data = _spotify_json_request(f"{API_BASE_URL}/me/player/devices", headers)
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    payload = {"devices": data.get("devices", []) if data else []}
+    if new_cookie_needed:
+        resp = JSONResponse(payload)
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+    return payload
+
+
+@router.put("/player/transfer")
+def transfer_playback(request: Request, body: TransferPlaybackRequest):
+    access_token, expires_at, new_cookie_needed = _get_valid_user_access_token(request)
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+    payload = {"device_ids": [body.device_id], "play": body.play}
+    try:
+        _spotify_json_request(f"{API_BASE_URL}/me/player", headers, method="PUT", payload=payload)
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    response_payload = {"message": "Playback transferred"}
+    if new_cookie_needed:
+        resp = JSONResponse(response_payload)
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+    return response_payload
+
+
+@router.post("/player/queue/add")
+def add_to_queue(request: Request, body: AddToQueueRequest):
+    access_token, expires_at, new_cookie_needed = _get_valid_user_access_token(request)
+    headers = {"Authorization": f"Bearer {access_token}"}
+    params = {"uri": body.uri}
+    if body.device_id:
+        params["device_id"] = body.device_id
+    try:
+        req = urllib.request.Request(f"{API_BASE_URL}/me/player/queue?{urllib.parse.urlencode(params)}", headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=10):
+            pass
+    except urllib.error.HTTPError as he:
+        raise HTTPException(status_code=502, detail=f"Spotify Error: {he}")
+    response_payload = {"message": "Added to queue"}
+    if new_cookie_needed:
+        resp = JSONResponse(response_payload)
+        resp.set_cookie("access_token", access_token, httponly=True, samesite="lax")
+        resp.set_cookie("expires_at", str(int(expires_at)), httponly=True, samesite="lax")
+        return resp
+    return response_payload

@@ -119,6 +119,134 @@ export const api = {
         const params = new URLSearchParams({ time_range: timeRange, limit: String(limit) });
         return fetchJson<{ tracks: any[] }>(`${BASE_URL}/spotify/top-tracks?${params.toString()}`, { redirect: "manual" });
     },
+
+    getRecommendations: (limit: number | string = 12) => {
+        const params = new URLSearchParams({ limit: String(limit) });
+        return fetchJson<{ tracks: any[], seed_summary?: { track_count: number; artist_count: number } }>(`${BASE_URL}/spotify/recommendations?${params.toString()}`, { redirect: "manual" });
+    },
+
+    getAudioFeatures: (ids: string[]) => {
+        const params = new URLSearchParams({ ids: ids.join(",") });
+        return fetchJson<{ audio_features: any[] }>(`${BASE_URL}/spotify/audio-features?${params.toString()}`);
+    },
+
+    getRelatedArtists: (artistId: string) =>
+        fetchJson<{ artists: any[] }>(`${BASE_URL}/spotify/artists/${artistId}/related-artists`),
+
+    getArtistTopTracks: (artistId: string, market: string = "US") => {
+        const params = new URLSearchParams({ market });
+        return fetchJson<{ tracks: any[] }>(`${BASE_URL}/spotify/artists/${artistId}/top-tracks?${params.toString()}`);
+    },
+
+    getAlbum: (albumId: string) => fetchJson<any>(`${BASE_URL}/spotify/albums/${albumId}`),
+
+    getAlbumTracks: (albumId: string, limit: number = 50, offset: number = 0) => {
+        const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+        return fetchJson<{ items: any[]; total: number }>(`${BASE_URL}/spotify/albums/${albumId}/tracks?${params.toString()}`);
+    },
+
+    getSavedTracks: (limit: number = 20, offset: number = 0) => {
+        const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+        return fetchJson<{ items: any[]; total: number }>(`${BASE_URL}/spotify/me/tracks?${params.toString()}`, { redirect: "manual" });
+    },
+
+    saveTracks: (ids: string[]) =>
+        fetchJson(`${BASE_URL}/spotify/me/tracks`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids }),
+            redirect: "manual"
+        }),
+
+    removeSavedTracks: (ids: string[]) =>
+        fetchJson(`${BASE_URL}/spotify/me/tracks`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids }),
+            redirect: "manual"
+        }),
+
+    getSavedAlbums: (limit: number = 20, offset: number = 0) => {
+        const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+        return fetchJson<{ items: any[]; total: number }>(`${BASE_URL}/spotify/me/albums?${params.toString()}`, { redirect: "manual" });
+    },
+
+    saveAlbums: (ids: string[]) =>
+        fetchJson(`${BASE_URL}/spotify/me/albums`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids }),
+            redirect: "manual"
+        }),
+
+    removeSavedAlbums: (ids: string[]) =>
+        fetchJson(`${BASE_URL}/spotify/me/albums`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids }),
+            redirect: "manual"
+        }),
+
+    getFollowedArtists: (limit: number = 20, after?: string) => {
+        const params = new URLSearchParams({ limit: String(limit) });
+        if (after) params.set("after", after);
+        return fetchJson<{ artists: any[]; cursors: any }>(`${BASE_URL}/spotify/me/following?${params.toString()}`, { redirect: "manual" });
+    },
+
+    followArtists: (ids: string[]) =>
+        fetchJson(`${BASE_URL}/spotify/me/following`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids }),
+            redirect: "manual"
+        }),
+
+    unfollowArtists: (ids: string[]) =>
+        fetchJson(`${BASE_URL}/spotify/me/following`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids }),
+            redirect: "manual"
+        }),
+
+    getAvailableGenreSeeds: () =>
+        fetchJson<{ genres: string[] }>(`${BASE_URL}/spotify/recommendations/available-genre-seeds`),
+
+    updatePlaylist: (playlistId: string, updates: { name?: string; description?: string; public?: boolean }) =>
+        fetchJson(`${BASE_URL}/spotify/playlists/${playlistId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updates),
+            redirect: "manual"
+        }),
+
+    setPlaylistImage: (playlistId: string, imageBase64: string) =>
+        fetchJson(`${BASE_URL}/spotify/playlists/${playlistId}/image`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ image_base64: imageBase64 }),
+            redirect: "manual"
+        }),
+
+    getBrowseCategories: (country: string = "US", limit: number = 20, offset: number = 0) => {
+        const params = new URLSearchParams({ country, limit: String(limit), offset: String(offset) });
+        return fetchJson<{ items: any[]; total: number }>(`${BASE_URL}/spotify/browse/categories?${params.toString()}`);
+    },
+
+    getFeaturedPlaylists: (country: string = "US", limit: number = 20, offset: number = 0) => {
+        const params = new URLSearchParams({ country, limit: String(limit), offset: String(offset) });
+        return fetchJson<{ items: any[]; total: number; message?: string }>(`${BASE_URL}/spotify/browse/featured-playlists?${params.toString()}`);
+    },
+
+    getCategoryPlaylists: (categoryId: string, country: string = "US", limit: number = 20, offset: number = 0) => {
+        const params = new URLSearchParams({ country, limit: String(limit), offset: String(offset) });
+        return fetchJson<{ items: any[]; total: number }>(`${BASE_URL}/spotify/browse/categories/${categoryId}/playlists?${params.toString()}`);
+    },
+
+    getNewReleases: (country: string = "US", limit: number = 20, offset: number = 0) => {
+        const params = new URLSearchParams({ country, limit: String(limit), offset: String(offset) });
+        return fetchJson<{ items: any[]; total: number }>(`${BASE_URL}/spotify/browse/new-releases?${params.toString()}`);
+    },
     
     getRecentlyPlayed: (limit: number = 10) => {
         return fetchJson<{ items: any[] }>(`${BASE_URL}/spotify/recently-played?limit=${limit}`);
@@ -131,6 +259,24 @@ export const api = {
     getQueue: () => {
         return fetchJson<{ queue: any[], currently_playing: any }>(`${BASE_URL}/spotify/player/queue`);
     },
+
+    getDevices: () => fetchJson<{ devices: any[] }>(`${BASE_URL}/spotify/player/devices`, { redirect: "manual" }),
+
+    transferPlayback: (deviceId: string, play: boolean = false) =>
+        fetchJson(`${BASE_URL}/spotify/player/transfer`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ device_id: deviceId, play }),
+            redirect: "manual"
+        }),
+
+    addToQueue: (uri: string, deviceId?: string) =>
+        fetchJson(`${BASE_URL}/spotify/player/queue/add`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uri, device_id: deviceId }),
+            redirect: "manual"
+        }),
 
     play: () => fetchJson(`${BASE_URL}/spotify/player/play`, { method: "PUT" }),
     pause: () => fetchJson(`${BASE_URL}/spotify/player/pause`, { method: "PUT" }),

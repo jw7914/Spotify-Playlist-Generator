@@ -17,6 +17,10 @@ import {
   ModalBody,
   ModalFooter,
   useDisclosure,
+  Input,
+  Textarea,
+  Switch,
+  Chip,
 } from "@heroui/react";
 import {
   ArrowLeft,
@@ -63,6 +67,7 @@ interface PlaylistDetails {
   id: string;
   name: string;
   description: string;
+  public?: boolean;
   images: { url: string }[] | null;
   owner: { display_name: string; id: string };
   followers: { total: number };
@@ -89,11 +94,20 @@ const formatDate = (dateString: string) => {
   });
 };
 
+const decodeHtmlEntities = (value: string | null | undefined) => {
+  if (!value) return "";
+  if (typeof document === "undefined") return value;
+  const textarea = document.createElement("textarea");
+  textarea.innerHTML = value;
+  return textarea.value;
+};
+
 export default function PlaylistDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { isOpen, onOpen, onOpenChange, onClose } = useDisclosure();
+  const { isOpen: isEditOpen, onOpen: onEditOpen, onOpenChange: onEditOpenChange } = useDisclosure();
   const [trackToDelete, setTrackToDelete] = useState<{ uri: string; name: string; id: string } | null>(null);
   const [deleteStatus, setDeleteStatus] = useState<'idle' | 'processing' | 'error'>('idle');
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
@@ -101,6 +115,11 @@ export default function PlaylistDetailsPage() {
   const [playlist, setPlaylist] = useState<PlaylistDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editPublic, setEditPublic] = useState(false);
+  const [savingPlaylist, setSavingPlaylist] = useState(false);
+  const [vibeSummary, setVibeSummary] = useState<{ label: string; value: string }[]>([]);
 
   useEffect(() => {
     if (toast) {
@@ -115,7 +134,13 @@ export default function PlaylistDetailsPage() {
     setLoading(true);
     api.spotify.getPlaylist(id)
       .then((data) => {
-        if (data) setPlaylist(data);
+        if (data) {
+          const decodedDescription = decodeHtmlEntities(data.description || "");
+          setPlaylist(data);
+          setEditName(data.name || "");
+          setEditDescription(decodedDescription);
+          setEditPublic(Boolean(data.public));
+        }
       })
       .catch((err) => {
           if (err instanceof AuthError) {
@@ -126,6 +151,30 @@ export default function PlaylistDetailsPage() {
       })
       .finally(() => setLoading(false));
   }, [id, navigate]);
+
+  useEffect(() => {
+    if (!playlist?.tracks?.items?.length) return;
+    const ids = playlist.tracks.items
+      .filter((item) => item.track?.id)
+      .slice(0, 10)
+      .map((item) => item.track.id);
+    if (!ids.length) return;
+
+    api.spotify.getAudioFeatures(ids)
+      .then((data) => {
+        const valid = (data.audio_features || []).filter(Boolean);
+        if (!valid.length) return;
+        const avg = (key: string) =>
+          valid.reduce((sum: number, item: any) => sum + (item[key] || 0), 0) / valid.length;
+        setVibeSummary([
+          { label: "Energy", value: `${Math.round(avg("energy") * 100)}%` },
+          { label: "Danceable", value: `${Math.round(avg("danceability") * 100)}%` },
+          { label: "Positive", value: `${Math.round(avg("valence") * 100)}%` },
+          { label: "Acoustic", value: `${Math.round(avg("acousticness") * 100)}%` },
+        ]);
+      })
+      .catch((err) => console.error("Failed to load audio features", err));
+  }, [playlist?.id]);
 
   const handleDeleteTrack = async () => {
     if (!playlist || !trackToDelete) return;
@@ -155,6 +204,30 @@ export default function PlaylistDetailsPage() {
       console.error("Failed to remove track:", err);
       setDeleteStatus('error');
       setToast({ message: `Failed to remove "${trackToDelete.name}".`, type: 'error' });
+    }
+  };
+
+  const handleSavePlaylistDetails = async (close: () => void) => {
+    if (!playlist) return;
+    setSavingPlaylist(true);
+    try {
+      await api.spotify.updatePlaylist(playlist.id, {
+        name: editName,
+        description: editDescription,
+        public: editPublic,
+      });
+      setPlaylist((prev) => prev ? {
+        ...prev,
+        name: editName,
+        description: decodeHtmlEntities(editDescription),
+      } : prev);
+      setToast({ message: "Playlist updated.", type: "success" });
+      close();
+    } catch (err) {
+      console.error("Failed to update playlist", err);
+      setToast({ message: "Failed to update playlist.", type: "error" });
+    } finally {
+      setSavingPlaylist(false);
     }
   };
 
@@ -248,6 +321,16 @@ export default function PlaylistDetailsPage() {
               <h1 className="text-5xl md:text-7xl font-black text-white tracking-tight mb-2">
                 {playlist.name}
               </h1>
+              {playlist.owner.id === user?.id && (
+                <Button
+                  size="sm"
+                  variant="bordered"
+                  className="border-white/10 bg-zinc-900 text-zinc-300"
+                  onPress={onEditOpen}
+                >
+                  Edit
+                </Button>
+              )}
               <Button
                   isIconOnly
                   variant="light"
@@ -258,7 +341,7 @@ export default function PlaylistDetailsPage() {
               </Button>
             </div>
             <p className="text-zinc-400 text-sm max-w-2xl line-clamp-2">
-              {playlist.description || "No description provided."}
+              {decodeHtmlEntities(playlist.description) || "No description provided."}
             </p>
 
             <div className="flex items-center gap-2 mt-2 text-sm text-white font-medium">
@@ -269,6 +352,15 @@ export default function PlaylistDetailsPage() {
               <span className="text-zinc-400">•</span>
               <span>{playlist.tracks.total} songs</span>
             </div>
+            {vibeSummary.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-4">
+                {vibeSummary.map((item) => (
+                  <Chip key={item.label} variant="flat" className="bg-zinc-900 text-zinc-200 border border-white/5">
+                    {item.label}: {item.value}
+                  </Chip>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -408,6 +500,47 @@ export default function PlaylistDetailsPage() {
                         </Button>
                     </>
                 )}
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      <Modal
+        isOpen={isEditOpen}
+        onOpenChange={onEditOpenChange}
+        className="dark text-white bg-zinc-900 border border-zinc-800"
+        backdrop="blur"
+      >
+        <ModalContent>
+          {(close) => (
+            <>
+              <ModalHeader>Edit Playlist</ModalHeader>
+              <ModalBody className="flex flex-col gap-4">
+                <Input
+                  label="Name"
+                  value={editName}
+                  onValueChange={setEditName}
+                  variant="bordered"
+                  classNames={{ inputWrapper: "border-white/10" }}
+                />
+                <Textarea
+                  label="Description"
+                  value={editDescription}
+                  onValueChange={setEditDescription}
+                  variant="bordered"
+                  classNames={{ inputWrapper: "border-white/10" }}
+                />
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-zinc-400">Public Playlist</span>
+                  <Switch isSelected={editPublic} onValueChange={setEditPublic} color="success" />
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="light" onPress={close}>Cancel</Button>
+                <Button className="bg-[#1DB954] text-black font-bold" isLoading={savingPlaylist} onPress={() => handleSavePlaylistDetails(close)}>
+                  Save Changes
+                </Button>
               </ModalFooter>
             </>
           )}

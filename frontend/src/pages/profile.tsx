@@ -6,6 +6,7 @@ import {
   Divider,
   Image,
   Skeleton,
+  Button,
 } from "@heroui/react";
 
 import { api } from "../services/api";
@@ -75,6 +76,30 @@ interface RecentTrack {
   };
 }
 
+interface SavedAlbum {
+  album: {
+    id: string;
+    name: string;
+    images: { url: string }[];
+    artists: { name: string }[];
+    external_urls?: { spotify: string };
+  };
+}
+
+interface FollowedArtist {
+  id: string;
+  name: string;
+  images: { url: string }[];
+  external_urls?: { spotify: string };
+}
+
+interface PlaybackDevice {
+  id: string;
+  name: string;
+  type: string;
+  is_active: boolean;
+}
+
 
 
 const getRelativeTime = (dateString: string) => {
@@ -105,6 +130,12 @@ export default function ProfilePage() {
   // --- Queue State ---
   const [queue, setQueue] = useState<any[]>([]);
   const [queueLoading, setQueueLoading] = useState(true);
+  const [savedAlbums, setSavedAlbums] = useState<SavedAlbum[]>([]);
+  const [albumsLoading, setAlbumsLoading] = useState(true);
+  const [followedArtists, setFollowedArtists] = useState<FollowedArtist[]>([]);
+  const [followedLoading, setFollowedLoading] = useState(true);
+  const [devices, setDevices] = useState<PlaybackDevice[]>([]);
+  const [devicesLoading, setDevicesLoading] = useState(true);
 
 
 
@@ -132,11 +163,15 @@ export default function ProfilePage() {
        // Fetch Currently Playing & Queue immediately
        fetchCurrentlyPlaying();
        fetchQueue();
+       fetchSavedAlbums();
+       fetchFollowedArtists();
+       fetchDevices();
 
        // Poll every 5 seconds
        const interval = setInterval(() => {
            fetchCurrentlyPlaying();
            fetchQueue();
+           fetchDevices();
        }, 5000);
 
        // Cleanup on unmount
@@ -190,6 +225,37 @@ export default function ProfilePage() {
           })
           .catch((err) => console.error("Failed to load queue", err))
           .finally(() => setQueueLoading(false));
+  };
+
+  const fetchSavedAlbums = () => {
+      api.spotify.getSavedAlbums(6, 0)
+          .then((data) => setSavedAlbums(data.items || []))
+          .catch((err) => console.error("Failed to load saved albums", err))
+          .finally(() => setAlbumsLoading(false));
+  };
+
+  const fetchFollowedArtists = () => {
+      api.spotify.getFollowedArtists(8)
+          .then((data) => setFollowedArtists(data.artists || []))
+          .catch((err) => console.error("Failed to load followed artists", err))
+          .finally(() => setFollowedLoading(false));
+  };
+
+  const fetchDevices = () => {
+      api.spotify.getDevices()
+          .then((data) => setDevices(data.devices || []))
+          .catch((err) => console.error("Failed to load devices", err))
+          .finally(() => setDevicesLoading(false));
+  };
+
+  const handleTransferPlayback = async (deviceId: string) => {
+      try {
+          await api.spotify.transferPlayback(deviceId, true);
+          fetchDevices();
+          fetchCurrentlyPlaying();
+      } catch (err) {
+          console.error("Failed to transfer playback", err);
+      }
   };
   
   const handleControl = async (action: "play" | "pause" | "next" | "previous") => {
@@ -265,6 +331,84 @@ export default function ProfilePage() {
         </div>
 
         <Divider className="my-10 bg-zinc-800" />
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
+          <Card className="bg-zinc-900/50 border border-zinc-800 p-5">
+            <h3 className="text-xl font-bold text-white mb-4">Playback Devices</h3>
+            <div className="flex flex-col gap-3">
+              {devicesLoading ? (
+                [...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 rounded-lg bg-zinc-800" />)
+              ) : devices.length > 0 ? (
+                devices.map((device) => (
+                  <div key={device.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/30 px-4 py-3">
+                    <div>
+                      <p className="text-white font-medium">{device.name}</p>
+                      <p className="text-xs text-zinc-500">{device.type}{device.is_active ? " • Active" : ""}</p>
+                    </div>
+                    {!device.is_active && (
+                      <Button size="sm" className="bg-[#1DB954] text-black font-semibold" onPress={() => handleTransferPlayback(device.id)}>
+                        Play Here
+                      </Button>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p className="text-zinc-500 text-sm">No active Spotify devices found.</p>
+              )}
+            </div>
+          </Card>
+
+          <Card className="bg-zinc-900/50 border border-zinc-800 p-5">
+            <h3 className="text-xl font-bold text-white mb-4">Followed Artists</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {followedLoading ? (
+                [...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-lg bg-zinc-800" />)
+              ) : followedArtists.length > 0 ? (
+                followedArtists.map((artist) => (
+                  <a
+                    key={artist.id}
+                    href={artist.external_urls?.spotify}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-xl border border-white/5 bg-black/30 p-3 hover:bg-zinc-800/60 transition-colors"
+                  >
+                    <img src={artist.images?.[0]?.url || "/placeholder_avatar.png"} alt={artist.name} className="w-14 h-14 rounded-full object-cover mb-2" />
+                    <p className="text-sm font-medium text-white line-clamp-2">{artist.name}</p>
+                  </a>
+                ))
+              ) : (
+                <p className="text-zinc-500 text-sm col-span-full">No followed artists available.</p>
+              )}
+            </div>
+          </Card>
+
+          <Card className="bg-zinc-900/50 border border-zinc-800 p-5">
+            <h3 className="text-xl font-bold text-white mb-4">Saved Albums</h3>
+            <div className="flex flex-col gap-3">
+              {albumsLoading ? (
+                [...Array(4)].map((_, i) => <Skeleton key={i} className="h-16 rounded-lg bg-zinc-800" />)
+              ) : savedAlbums.length > 0 ? (
+                savedAlbums.map(({ album }) => (
+                  <a
+                    key={album.id}
+                    href={album.external_urls?.spotify}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 rounded-xl border border-white/5 bg-black/30 p-3 hover:bg-zinc-800/60 transition-colors"
+                  >
+                    <img src={album.images?.[0]?.url || "/placeholder_avatar.png"} alt={album.name} className="w-12 h-12 rounded-lg object-cover" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-white truncate">{album.name}</p>
+                      <p className="text-xs text-zinc-500 truncate">{album.artists?.map((a) => a.name).join(", ")}</p>
+                    </div>
+                  </a>
+                ))
+              ) : (
+                <p className="text-zinc-500 text-sm">No saved albums available.</p>
+              )}
+            </div>
+          </Card>
+        </div>
 
 
 
